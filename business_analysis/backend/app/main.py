@@ -15,7 +15,7 @@ from .core import _ensure_stock_names_cache
 # 项目根目录 (backend/app/main.py -> backend/ -> 项目根目录)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # 前端目录
-FRONTEND_DIR = BASE_DIR
+FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
 
 # 创建 FastAPI 应用
 app = FastAPI(
@@ -38,12 +38,9 @@ app.include_router(finance_router)
 app.include_router(sentiment_router)
 
 # 静态文件目录
-css_dir = os.path.join(BASE_DIR, "css")
-frontend_src = os.path.join(BASE_DIR, "frontend", "src")
+frontend_src = os.path.join(FRONTEND_DIR, "src")
 
 # 挂载静态文件
-if os.path.exists(css_dir):
-    app.mount("/css", StaticFiles(directory=css_dir), name="css")
 if os.path.exists(frontend_src):
     app.mount("/src", StaticFiles(directory=frontend_src), name="frontend_src")
 
@@ -57,7 +54,7 @@ def startup():
 @app.get("/")
 def index():
     """首页"""
-    index_path = os.path.join(BASE_DIR, "index.html")
+    index_path = os.path.join(FRONTEND_DIR, "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path)
     return {"message": "企业风控系统 API"}
