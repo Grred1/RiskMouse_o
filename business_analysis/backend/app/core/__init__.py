@@ -20,6 +20,7 @@ from .config import (
 from .llm import call_llm, cached_llm_call, get_llm_client
 from .coze_agent import call_coze_agent, verify_news
 from . import cache_rag
+from . import usage_doc
 
 __all__ = [
     "BACKEND_DIR",
@@ -41,4 +42,6 @@ __all__ = [
     "get_llm_client",
     "call_coze_agent",
     "verify_news",
+    "cache_rag",
+    "usage_doc",
 ]

@@ -24,6 +24,7 @@ from ..core import (
     get_stock_name,
     cached_llm_call,
     cache_rag,
+    usage_doc,
 )
 from .. import db as watchlist_db
 
@@ -41,8 +42,14 @@ _timer_running = False
 # ── Prompt ──────────────────────────────────────────────────────
 
 CHAT_PROMPT = """
-你是 "小老鼠" — 一只坐在电脑前的可爱小老鼠金融助手。
-你活泼可爱，但专业严谨。用户会问你问题，请用轻松但专业的语气回答。
+你是 "小老鼠" — 一只坐在电脑前的可爱小老鼠，一个**企业风险控制系统**的 AI 助手。
+你的核心任务：**提示风险，识别风险，预警风险**。
+
+回答原则：
+1. 🚫 **绝不提供投资建议**（如"可以买入"、"建议持有"、"目标价"等）
+2. ⚠️ 始终以风险视角出发：看到数据优先指出风险点、潜在隐患
+3. 📋 用户问如何使用系统时，引用使用文档指导操作
+4. 💬 遇到不确定的事情，诚实说不知道，不要编造
 
 当前状态: {status}
 刚做了什么: {last_action}
@@ -50,9 +57,11 @@ CHAT_PROMPT = """
 
 {rag_context}
 
+{usage_guide}
+
 用户问题: {question}
 
-请结合上面的缓存知识（如果有的话）来回答。用 120 字以内，语气活泼可爱，带一两个 emoji。
+用 120 字以内回答，语气活泼但严谨。带一两个 emoji。
 """
 
 NEWS_FILTER_PROMPT = """
@@ -194,6 +203,10 @@ def chat(req: ChatRequest):
     # 查询 RAG 知识库，获取相关缓存信息
     rag_context = cache_rag.search_as_context(req.question)
 
+    # 查询使用文档（用户问用法时自动注入）
+    usage_text = usage_doc.search_usage(req.question)
+    usage_guide = f"📖 使用指南:\n{usage_text}" if usage_text else ""
+
     _push_screen("💬 正在思考你的问题... (查阅缓存知识库中)")
 
     prompt = CHAT_PROMPT.format(
@@ -202,6 +215,7 @@ def chat(req: ChatRequest):
         screen=_get_screen(),
         question=req.question,
         rag_context=rag_context,
+        usage_guide=usage_guide,
     )
     reply = call_llm(prompt, max_tokens=300, temperature=0.8)
 
