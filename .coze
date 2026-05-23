@@ -1,0 +1,12 @@
+[project]
+requires = ["python-3.12"]
+
+[preview]
+preview_enable = "enabled"
+
+[dev]
+build = ["bash", "business_analysis/scripts/coze-preview-build.sh"]
+run = ["bash", "business_analysis/scripts/coze-preview-run.sh"]
+
+[subprojects]
+path = ["business_analysis"]
