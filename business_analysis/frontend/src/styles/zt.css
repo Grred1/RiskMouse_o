@@ -1,53 +1,263 @@
-.zt-toolbar {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-    flex-wrap: wrap;
-    background: #fff;
-    padding: 12px 16px;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-    margin-bottom: 16px;
+/* ============================================
+   风险挖掘模块 - 赛博朋克风格
+   ============================================ */
+
+/* 霓虹发光效果 */
+.cyber-glow-cyan {
+    text-shadow: 0 0 10px var(--cyber-primary), 0 0 20px var(--cyber-primary);
 }
-.zt-toolbar label {
-    font-size: 14px;
-    font-weight: 600;
-    color: #555;
+
+.cyber-glow-magenta {
+    text-shadow: 0 0 10px var(--cyber-secondary), 0 0 20px var(--cyber-secondary);
 }
-.zt-toolbar input[type="date"] {
-    padding: 8px 12px;
-    border: 1px solid #d0d7e0;
-    border-radius: 6px;
-    font-size: 14px;
-    outline: none;
+
+.cyber-glow-danger {
+    text-shadow: 0 0 10px var(--cyber-danger), 0 0 20px var(--cyber-danger);
 }
-.zt-toolbar button {
-    padding: 8px 24px;
-    background: #c0392b;
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    font-size: 14px;
+
+/* 扫描线效果（可选） */
+@keyframes scan {
+    0% { top: 0; opacity: 1; }
+    100% { top: 100%; opacity: 0.3; }
+}
+
+.cyber-card {
+    position: relative;
+    overflow: hidden;
+}
+
+.cyber-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--cyber-primary), transparent);
+    animation: scan 3s linear infinite;
+    z-index: 10;
+}
+
+/* 卡片边框发光 */
+.cyber-border-glow {
+    border: 1px solid var(--cyber-primary) !important;
+    box-shadow: 
+        0 0 15px rgba(0, 240, 255, 0.2),
+        inset 0 0 30px rgba(0, 240, 255, 0.05);
+}
+
+/* 按钮霓虹效果 */
+.cyber-btn {
+    background: linear-gradient(135deg, rgba(0, 240, 255, 0.1), rgba(255, 0, 255, 0.1));
+    border: 1px solid var(--cyber-primary);
+    color: var(--cyber-primary);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    transition: all 0.3s ease;
+}
+
+.cyber-btn:hover {
+    background: linear-gradient(135deg, rgba(0, 240, 255, 0.2), rgba(255, 0, 255, 0.2));
+    box-shadow: 
+        0 0 20px rgba(0, 240, 255, 0.4),
+        0 0 40px rgba(0, 240, 255, 0.2);
+    transform: translateY(-2px);
+}
+
+.cyber-btn:active {
+    transform: translateY(0);
+}
+
+/* 数据统计卡片 */
+.cyber-stat-card {
+    background: linear-gradient(135deg, rgba(10, 14, 23, 0.95), rgba(20, 30, 50, 0.9));
+    border: 1px solid var(--cyber-border);
+    padding: 15px 20px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.cyber-stat-card::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--cyber-primary), var(--cyber-secondary));
+}
+
+/* 风险标签 */
+.risk-high {
+    color: var(--cyber-danger) !important;
+    border-color: var(--cyber-danger) !important;
+    background: rgba(255, 51, 102, 0.1) !important;
+}
+
+.risk-medium {
+    color: var(--cyber-warning) !important;
+    border-color: var(--cyber-warning) !important;
+    background: rgba(255, 204, 0, 0.1) !important;
+}
+
+.risk-low {
+    color: #00ff88 !important;
+    border-color: #00ff88 !important;
+    background: rgba(0, 255, 136, 0.1) !important;
+}
+
+/* 热度指示器 */
+.heat-bar {
+    height: 6px;
+    background: var(--cyber-border);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.heat-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--cyber-primary), var(--cyber-secondary));
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+/* 来源标签 */
+.source-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    font-size: 10px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.source-zt {
+    background: rgba(255, 0, 255, 0.2);
+    border: 1px solid var(--cyber-secondary);
+    color: var(--cyber-secondary);
+}
+
+.source-hot {
+    background: rgba(0, 240, 255, 0.2);
+    border: 1px solid var(--cyber-primary);
+    color: var(--cyber-primary);
+}
+
+/* 高亮行 */
+.row-high-heat {
+    background: rgba(255, 0, 255, 0.08) !important;
+    border-left: 3px solid var(--cyber-secondary) !important;
+}
+
+.row-high-heat:hover {
+    background: rgba(255, 0, 255, 0.15) !important;
+}
+
+/* 详情面板 */
+.detail-panel {
+    background: linear-gradient(135deg, rgba(10, 14, 23, 0.98), rgba(20, 30, 50, 0.95));
+    border: 1px solid var(--cyber-primary);
+    box-shadow: 
+        0 0 30px rgba(0, 240, 255, 0.3),
+        0 0 60px rgba(0, 240, 255, 0.1);
+}
+
+/* AI 分析结果 */
+.ai-result {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--cyber-border);
+    border-radius: 4px;
+    padding: 15px;
+    line-height: 1.8;
+}
+
+/* 标签切换 */
+.tab-btn {
+    background: transparent;
+    border: 1px solid var(--cyber-border);
+    color: var(--cyber-text-dim);
+    padding: 8px 16px;
     cursor: pointer;
-    font-weight: 600;
-}
-.zt-toolbar button:hover { background: #e74c3c; }
-.zt-toolbar button:disabled { background: #999; cursor: not-allowed; }
-.zt-toolbar .zt-summary {
-    font-size: 14px;
-    color: #555;
-    font-weight: 500;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-size: 12px;
 }
 
-.zt-error {
-    background: #fff0f0;
-    color: #c0392b;
-    padding: 12px 16px;
-    border-radius: 8px;
-    margin-bottom: 16px;
-    border: 1px solid #f5c6cb;
-    display: none;
+.tab-btn:hover {
+    border-color: var(--cyber-primary);
+    color: var(--cyber-primary);
 }
 
-.row-multi { background: #fff5f5; }
-.row-multi:hover td { background: #ffe8e8 !important; }
+.tab-btn.active {
+    background: linear-gradient(135deg, rgba(0, 240, 255, 0.2), rgba(255, 0, 255, 0.1));
+    border-color: var(--cyber-primary);
+    color: var(--cyber-primary);
+    box-shadow: 0 0 15px rgba(0, 240, 255, 0.3);
+}
+
+/* 响应式表格 */
+.stock-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.stock-table th {
+    background: rgba(0, 240, 255, 0.1);
+    border-bottom: 2px solid var(--cyber-primary);
+    padding: 12px 8px;
+    text-align: left;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-size: 11px;
+    color: var(--cyber-primary);
+}
+
+.stock-table td {
+    padding: 10px 8px;
+    border-bottom: 1px solid var(--cyber-border);
+    vertical-align: middle;
+}
+
+.stock-table tr:hover td {
+    background: rgba(0, 240, 255, 0.05);
+}
+
+/* 加载动画 */
+@keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 5px var(--cyber-primary); }
+    50% { box-shadow: 0 0 20px var(--cyber-primary), 0 0 30px var(--cyber-primary); }
+}
+
+.loading-cyber {
+    animation: pulse-glow 1.5s ease-in-out infinite;
+}
+
+/* 网格背景效果 */
+.cyber-grid-bg {
+    background-image: 
+        linear-gradient(rgba(0, 240, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 240, 255, 0.03) 1px, transparent 1px);
+    background-size: 30px 30px;
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.3);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--cyber-primary);
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--cyber-secondary);
+}
