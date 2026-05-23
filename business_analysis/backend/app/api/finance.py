@@ -48,6 +48,13 @@ _PROFIT_KEY_COLS = [
     "OPERATE_TAX_ADD",
 ]
 
+# 前端期望字段名 → akshare 实际列名（不一致时映射）
+_PROFIT_ALIASES = {
+    "TOTAL_OPERATE_INCOME": "OPERATE_INCOME",
+    "TOTAL_OPERATE_INCOME_YOY": "OPERATE_INCOME_YOY",
+    "TOTAL_OPERATE_COST": "OPERATE_COST",
+}
+
 _BALANCE_KEY_COLS = [
     "MONETARYFUNDS", "ADVANCE_RECEIVABLES", "INVENTORY",
     "TOTAL_CURRENT_ASSETS", "TOTAL_NONCURRENT_ASSETS", "TOTAL_ASSETS",
@@ -183,10 +190,17 @@ def get_financial(
             if profit_df is not None:
                 profit_df = profit_df.sort_values("REPORT_DATE")
                 for _, row in profit_df.iterrows():
-                    rec = {"REPORT_DATE": str(row["REPORT_DATE"])[:10]}
+                    date_val = str(row["REPORT_DATE"])
+                    # 统一日期格式：纯8位数字 -> YYYY-MM-DD
+                    if len(date_val) == 8 and date_val.isdigit():
+                        rec_date = f"{date_val[:4]}-{date_val[4:6]}-{date_val[6:8]}"
+                    else:
+                        rec_date = date_val[:10]
+                    rec = {"REPORT_DATE": rec_date}
                     for c in _PROFIT_KEY_COLS:
-                        if c in profit_df.columns:
-                            rec[c] = _safe_val(row, c)
+                        actual_col = _PROFIT_ALIASES.get(c, c)
+                        if actual_col in profit_df.columns:
+                            rec[c] = _safe_val(row, actual_col)
                     profit_records.append(rec)
         except Exception:
             profit_records = []
@@ -198,7 +212,12 @@ def get_financial(
             if balance_df is not None:
                 balance_df = balance_df.sort_values("REPORT_DATE")
                 for _, row in balance_df.iterrows():
-                    rec = {"REPORT_DATE": str(row["REPORT_DATE"])[:10]}
+                    date_val = str(row["REPORT_DATE"])
+                    if len(date_val) == 8 and date_val.isdigit():
+                        rec_date = f"{date_val[:4]}-{date_val[4:6]}-{date_val[6:8]}"
+                    else:
+                        rec_date = date_val[:10]
+                    rec = {"REPORT_DATE": rec_date}
                     for c in _BALANCE_KEY_COLS:
                         if c in balance_df.columns:
                             rec[c] = _safe_val(row, c)
@@ -213,7 +232,12 @@ def get_financial(
             if cash_df is not None:
                 cash_df = cash_df.sort_values("REPORT_DATE")
                 for _, row in cash_df.iterrows():
-                    rec = {"REPORT_DATE": str(row["REPORT_DATE"])[:10]}
+                    date_val = str(row["REPORT_DATE"])
+                    if len(date_val) == 8 and date_val.isdigit():
+                        rec_date = f"{date_val[:4]}-{date_val[4:6]}-{date_val[6:8]}"
+                    else:
+                        rec_date = date_val[:10]
+                    rec = {"REPORT_DATE": rec_date}
                     for c in _CASHFLOW_KEY_COLS:
                         if c in cash_df.columns:
                             rec[c] = _safe_val(row, c)
