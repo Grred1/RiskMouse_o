@@ -61,6 +61,18 @@ async function search() {
  * 渲染主营构成数据
  */
 function renderZygcData(zygcData) {
+    // 更新标题
+    const titleEl = document.getElementById('stockTitle');
+    if (titleEl) titleEl.textContent = `${zygcData.name || ''}(${zygcData.code || ''}) 主营构成`;
+    
+    // 更新报告期选择器
+    const reportSelect = document.getElementById('reportSelect');
+    if (reportSelect && zygcData.allDates) {
+        reportSelect.innerHTML = zygcData.allDates.map(d => 
+            `<option value="${d}" ${d === zygcData.latestDate ? 'selected' : ''}>${d}</option>`
+        ).join('');
+    }
+    
     // 按行业分类
     const industryData = zygcData.industry || [];
     renderTable('table-industry', industryData, '按行业分类');
@@ -82,15 +94,29 @@ function renderTable(tableId, data, title) {
     if (!table) return;
     
     if (!data || data.length === 0) {
-        table.innerHTML = '<tr><td colspan="3">暂无数据</td></tr>';
+        table.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#666;">暂无${title}数据</td></tr>`;
         return;
     }
     
-    let html = `<tr><th>分类</th><th>金额(万)</th><th>占比</th></tr>`;
+    let html = `<thead><tr>
+        <th>分类</th><th>收入(万)</th><th>收入占比</th><th>毛利率</th><th>利润占比</th>
+    </tr></thead><tbody>`;
     data.forEach(item => {
-        html += `<tr><td>${item.name || '-'}</td><td>${item.amount || item.revenue || '-'}</td><td>${item.ratio || '-'}</td></tr>`;
+        html += `<tr>
+            <td>${item.name || '-'}</td>
+            <td>${formatNumber(item.revenue)}</td>
+            <td>${item.ratio}%</td>
+            <td>${item.grossMargin}%</td>
+            <td>${item.profitRatio}%</td>
+        </tr>`;
     });
+    html += '</tbody>';
     table.innerHTML = html;
+}
+
+function formatNumber(num) {
+    if (!num && num !== 0) return '-';
+    return parseFloat(num).toLocaleString('zh-CN', { maximumFractionDigits: 2 });
 }
 
 function renderChart(chartId, data, title) {
