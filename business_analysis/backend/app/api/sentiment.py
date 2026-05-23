@@ -13,6 +13,7 @@ from ..core import (
     format_num,
     format_pct,
     normalize_symbol,
+    extract_pure_code,
     load_prompts,
     call_llm,
     cached_llm_call,
@@ -24,10 +25,10 @@ router = APIRouter(prefix="/api", tags=["风险挖掘"])
 
 # 加载提示词
 PROMPTS = load_prompts()
-RISK_ANALYSIS_PROMPT = PROMPTS.get("RISK_ANALYSIS", """
-你是一位专业的证券风险分析师。请对以下热门关注标的进行**全面的风险评估**。
+RISK_ANALYSIS_PROMPT = """
+你是一位专业的证券风险分析师。请根据以下数据，对当前热门关注标的进行**全维度量化风险评估**。
 
-======== 基本信息 ========
+======== 股票基本信息 ========
 名称: {name}({code})
 关注来源: {source}
 所属行业: {industry}
@@ -35,20 +36,57 @@ RISK_ANALYSIS_PROMPT = PROMPTS.get("RISK_ANALYSIS", """
 ======== 主营构成（最新报告期） ========
 {zygc}
 
-======== 市场关注点 ========
-{attention}
+======== 核心财务数据（最新报告期） ========
+{financial}
 
 ======== 分析要求 ========
-请从以下几个维度进行风险评估（500字以内）：
+请按以下维度逐一分析，每个维度给出 **风险评分（1-10分，1分最低风险，10分最高风险）**，最后汇总综合风险分。
 
-1. **基本面风险**：主营业务的盈利能力、成长性、可持续性如何？是否有隐忧？
-2. **舆情风险**：市场关注度是否理性？是否存在过度炒作风险？
-3. **估值风险**：当前估值是否合理？是否存在泡沫？
-4. **潜在风险因素**：有哪些值得关注的潜在风险点？
-5. **综合风险评级**：给出 低风险/中低风险/中高风险/高风险 评级，并给出简要理由
+### 1️⃣ 基本面风险（权重30%）
+- 营收/利润增长趋势是否健康？
+- 毛利率、净利率水平如何？在行业中是否有竞争力？
+- 主营构成的集中度是否过高？（单一业务占比过大）
+- 盈利能力是否可持续？
 
-请务必客观中立，不构成投资建议，仅为风险分析参考。
-""")
+### 2️⃣ 财务健康风险（权重25%）
+- 资产负债率是否过高？
+- 现金流是否充裕？
+- ROE 水平是否合理？
+- 是否存在财务隐患？
+
+### 3️⃣ 市场情绪风险（权重20%）
+- 当前关注来源（涨停/龙虎榜）是否为短期炒作？
+- 股吧热门关键词反映的是什么逻辑？是否有基本面支撑？
+- 市场预期是否过于乐观/悲观？
+
+### 4️⃣ 估值风险（权重15%）
+- 当前估值（市盈率/市净率）处于什么水平？
+- 对比行业和自身历史，估值是否合理？
+
+### 5️⃣ 潜在暴雷风险（权重10%）
+- 是否存在可能引发股价大幅下跌的因素？
+- 大股东减持、监管问询、诉讼纠纷、商誉减值等风险信号？
+
+======== 输出格式 ========
+请严格按以下格式输出：
+
+【综合风险评分】X/10 分 —— 低风险/中低风险/中高风险/高风险
+
+【各维度评分】
+- 基本面风险: X/10 —— 评分理由简述
+- 财务健康风险: X/10 —— 评分理由简述
+- 市场情绪风险: X/10 —— 评分理由简述
+- 估值风险: X/10 —— 评分理由简述
+- 暴雷风险: X/10 —— 评分理由简述
+
+【核心风险点】
+列出1-3个最值得关注的风险点
+
+【风险结论】
+50字以内的综合判断
+
+请务必客观中立，不构成投资建议。
+"""
 
 
 @router.get("/risk/pool")
@@ -142,15 +180,16 @@ def get_risk_pool(
 
 @router.post("/risk/analyze")
 def analyze_risk_stock(data: dict):
-    """AI 风险评估热门关注标的"""
+    """AI 风险评分热门关注标的（含财务数据+量化评分）"""
     code = data.get("code", "")
     name = data.get("name", "")
-    source = data.get("source", "")  # 涨停 / 龙虎榜
+    source = data.get("source", "")
     industry = data.get("industry", "")
-    attention = data.get("attention", "")
-    symbol = normalize_symbol(code)
 
-    # 获取主营构成
+    symbol = normalize_symbol(code)
+    pure_code = extract_pure_code(symbol)
+
+    # 1. 获取主营构成
     try:
         df = ak.stock_zygc_em(symbol=symbol)
         if df is not None and not df.empty:
@@ -172,22 +211,53 @@ def analyze_risk_stock(data: dict):
     except Exception:
         zygc_text = "获取主营构成失败"
 
+    # 2. 获取财务摘要
+    financial_text = "暂无财务数据"
+    try:
+        abstract_df = ak.stock_financial_abstract_ths(symbol=pure_code)
+        if abstract_df is not None and not abstract_df.empty:
+            abstract_records = abstract_df.to_dict("records")
+            latest = abstract_records[-1] if abstract_records else {}
+            if latest:
+                lines = []
+                keys_show = [
+                    ("营业总收入", "营收"),
+                    ("营业总收入同比增长率", "营收同比"),
+                    ("净利润", "净利润"),
+                    ("净利润同比增长率", "净利润同比"),
+                    ("销售毛利率", "毛利率"),
+                    ("销售净利率", "净利率"),
+                    ("净资产收益率", "ROE"),
+                    ("资产负债率", "资产负债率"),
+                    ("每股经营现金流", "每股现金流"),
+                    ("基本每股收益", "每股收益"),
+                ]
+                for key, label in keys_show:
+                    val = latest.get(key, "")
+                    if val is not None and str(val) not in ("", "--", "false", "False"):
+                        lines.append(f"  {label}: {val}")
+                if lines:
+                    financial_text = "最新报告期:\n" + "\n".join(lines)
+    except Exception:
+        pass
+
     prompt = RISK_ANALYSIS_PROMPT.format(
         name=name,
         code=code,
         source=source,
         industry=industry,
         zygc=zygc_text,
-        attention=attention,
+        financial=financial_text,
     )
 
-    analysis = call_llm(prompt, max_tokens=600)
+    analysis = call_llm(prompt, max_tokens=800)
 
     return {
         "code": code,
         "name": name,
         "source": source,
         "zygc": zygc_text,
+        "financial": financial_text,
         "risk_analysis": analysis,
     }
 
@@ -236,7 +306,7 @@ GUBA_ANALYSIS_PROMPT = """
 
 
 def _scrape_guba_posts(symbol: str) -> list:
-    """从东方财富股吧页面抓取帖子标题（多页爬取）"""
+    """从东方财富股吧页面抓取帖子标题和链接（多页爬取）"""
     import re
     import requests
 
@@ -244,8 +314,8 @@ def _scrape_guba_posts(symbol: str) -> list:
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "Referer": "https://guba.eastmoney.com/",
     }
-    all_titles = []
-    seen = set()
+    all_posts = []
+    seen_ids = set()
     for page in range(1, 4):
         try:
             url = f"https://guba.eastmoney.com/list,{symbol}_{page}.html"
@@ -253,14 +323,18 @@ def _scrape_guba_posts(symbol: str) -> list:
             if r.status_code != 200:
                 break
             titles = re.findall(r'"post_title"\s*:\s*"([^"]+)"', r.text)
-            for t in titles:
+            ids = re.findall(r'"post_id"\s*:\s*(\d+)', r.text)
+            for t, pid in zip(titles, ids):
                 t = t.strip()
-                if len(t) > 4 and t not in seen and not any(kw in t for kw in ["反诈", "网警", "举报"]):
-                    seen.add(t)
-                    all_titles.append(t)
+                if len(t) > 4 and pid not in seen_ids and not any(kw in t for kw in ["反诈", "网警", "举报"]):
+                    seen_ids.add(pid)
+                    all_posts.append({
+                        "title": t,
+                        "url": f"https://guba.eastmoney.com/news,{symbol},{pid}.html",
+                    })
         except Exception:
             break
-    return all_titles[:90]
+    return all_posts[:60]
 
 
 def _clean_nan(obj):
@@ -353,7 +427,7 @@ def get_guba_data(
                 f"总参评股票数: {rank_data.get('marketAllCount', 'N/A')}\n"
                 f"排名变动(与昨日): {rank_data.get('rankChange', 'N/A')}"
             )
-            post_text = "\n".join([f"- {t}" for t in post_titles[:40]]) if post_titles else "暂无帖子数据"
+            post_text = "\n".join([f"- {t['title']}" for t in post_titles[:40]]) if post_titles else "暂无帖子数据"
 
             prompt = GUBA_ANALYSIS_PROMPT.format(
                 name=code,

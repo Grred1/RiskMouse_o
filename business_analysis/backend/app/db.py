@@ -89,7 +89,7 @@ def update_stock_name(code: str, name: str):
 
 # ── 分析结果缓存 ─────────────────────────────────────────────────
 
-def get_analysis(code: str) -> dict | None:
+def get_analysis(code: str):
     """返回当日有效的分析结果，过期返回 None"""
     with _conn() as c:
         row = c.execute(

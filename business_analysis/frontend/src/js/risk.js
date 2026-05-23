@@ -108,8 +108,9 @@ async function showRiskDetail(code, name, source, industry) {
     const loading = document.getElementById('ztDetailLoading');
     const content = document.getElementById('ztDetailContent');
     const logicArea = document.getElementById('ztLogicArea');
-    const zygcArea = document.getElementById('ztZygcArea');
     const analysisArea = document.getElementById('ztAnalysisArea');
+
+    if (!header || !loading || !content || !logicArea || !analysisArea) return;
 
     // 更新头部
     header.textContent = `${name} (${code})`;
@@ -120,9 +121,8 @@ async function showRiskDetail(code, name, source, industry) {
 
     try {
         const pureCode = code.replace(/^(SH|SZ|BJ)/, '');
-        // 并行获取主营构成、AI 分析和股吧数据
-        const [zygcRes, analysisRes, gubaRes] = await Promise.all([
-            fetch(`/api/zygc?symbol=${code}`),
+        // 并行获取 AI 风险评分和股吧数据
+        const [analysisRes, gubaRes] = await Promise.all([
             fetch(`/api/risk/analyze`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -136,23 +136,10 @@ async function showRiskDetail(code, name, source, industry) {
             fetch(`/api/risk/guba?code=${pureCode}`)
         ]);
 
-        const zygcData = await zygcRes.json();
         const analysisData = await analysisRes.json();
         const gubaData = await gubaRes.json();
 
-        // 显示主营构成
-        if (zygcData.records && zygcData.records.length > 0) {
-            const latest = zygcData.records[0];
-            const records = Object.entries(latest)
-                .filter(([k]) => k.startsWith('按'))
-                .map(([k, v]) => `${k}: ${v}`)
-                .join('\n');
-            zygcArea.textContent = records || '暂无主营数据';
-        } else {
-            zygcArea.textContent = '暂无主营数据';
-        }
-
-        // 显示 AI 风险分析
+        // 显示 AI 风险分析（后台已包含主营构成+财务数据）
         if (analysisData.error) {
             analysisArea.textContent = '风险分析失败: ' + analysisData.error;
         } else if (analysisData.risk_analysis) {
@@ -163,7 +150,7 @@ async function showRiskDetail(code, name, source, industry) {
             analysisArea.textContent = '暂无风险分析数据';
         }
 
-        // 显示股吧关注点（真实数据）
+        // 显示股吧关注点
         renderGubaData(logicArea, gubaData);
 
     } catch (err) {
@@ -251,26 +238,54 @@ function renderGubaData(container, data) {
         html += `</div>`;
     }
 
-    // 帖子标题（可展开）
+    // 帖子标题（可点击跳转）
     if (postTitles.length > 0) {
         html += `<details style="margin-bottom:8px;font-size:12px;">
             <summary style="cursor:pointer;color:#555;font-weight:600;">📝 最新股吧热帖（${postTitles.length}条）</summary>
-            <div style="margin-top:4px;max-height:120px;overflow-y:auto;background:#f9f9f9;padding:8px;border-radius:6px;">`;
-        postTitles.forEach(t => {
-            html += `<div style="padding:3px 0;border-bottom:1px solid #eee;color:#444;">${t}</div>`;
+            <div style="margin-top:4px;max-height:150px;overflow-y:auto;background:#f9f9f9;padding:8px;border-radius:6px;">`;
+        postTitles.forEach(p => {
+            const t = typeof p === 'string' ? p : p.title;
+            const u = typeof p === 'string' ? '' : p.url;
+            if (u) {
+                html += `<div style="padding:3px 0;border-bottom:1px solid #eee;">
+                    <a href="${u}" target="_blank" rel="noopener noreferrer" style="color:#2952a3;text-decoration:none;display:block;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${t}</a>
+                </div>`;
+            } else {
+                html += `<div style="padding:3px 0;border-bottom:1px solid #eee;color:#444;">${t}</div>`;
+            }
         });
         html += `</div></details>`;
     }
 
-    // AI 分析的市场逻辑
+    // 市场观点总结（可折叠）
     if (analysis) {
+        const truncated = analysis.length > 120 ? analysis.slice(0, 120) + '...' : analysis;
         html += `<div style="margin-top:8px;padding:10px;background:#fef9e7;border-radius:8px;border:1px solid #fdebd0;">
-            <div style="font-size:13px;font-weight:600;color:#e67e22;margin-bottom:4px;">🤖 AI 股吧舆情分析</div>
-            <div style="font-size:13px;line-height:1.7;color:#444;white-space:pre-wrap;">${analysis}</div>
+            <div style="font-size:13px;font-weight:600;color:#e67e22;margin-bottom:4px;cursor:pointer;" onclick="toggleAnalysis(this)">
+                📊 市场观点总结 <span style="font-size:11px;color:#aaa;">（点击展开/收起）</span>
+            </div>
+            <div class="guba-analysis-short" style="font-size:13px;line-height:1.7;color:#444;white-space:pre-wrap;">${truncated}</div>
+            <div class="guba-analysis-full" style="font-size:13px;line-height:1.7;color:#444;white-space:pre-wrap;display:none;">${analysis}</div>
         </div>`;
     }
 
     container.innerHTML = html;
+}
+
+function toggleAnalysis(el) {
+    const container = el.parentElement;
+    const short = container.querySelector('.guba-analysis-short');
+    const full = container.querySelector('.guba-analysis-full');
+    if (!short || !full) return;
+    if (full.style.display === 'none') {
+        short.style.display = 'none';
+        full.style.display = 'block';
+        el.querySelector('span').textContent = '（点击收起）';
+    } else {
+        short.style.display = 'block';
+        full.style.display = 'none';
+        el.querySelector('span').textContent = '（点击展开/收起）';
+    }
 }
 
 // 初始化
