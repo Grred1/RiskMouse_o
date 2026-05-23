@@ -12,13 +12,12 @@ import akshare as ak
 import pandas as pd
 
 
-# 项目根目录（backend 的上一级）
+# 项目根目录（business_analysis/）
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PROJECT_ROOT = os.path.dirname(BACKEND_DIR)
-BASE_DIR = os.path.join(PROJECT_ROOT, "business_analysis")
 
-# 缓存目录
-CACHE_DIR = os.path.join(BASE_DIR, "cache")
+# 缓存目录（统一放在项目根目录下）
+CACHE_DIR = os.path.join(PROJECT_ROOT, "cache")
 os.makedirs(CACHE_DIR, exist_ok=True)
 
 AI_CACHE_DIR = os.path.join(CACHE_DIR, "ai")

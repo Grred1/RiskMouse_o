@@ -2,7 +2,6 @@
 Core 模块 - 核心配置和工具
 """
 from .config import (
-    BASE_DIR,
     BACKEND_DIR,
     PROJECT_ROOT,
     CACHE_DIR,
@@ -21,7 +20,6 @@ from .config import (
 from .llm import call_llm, cached_llm_call, get_llm_client
 
 __all__ = [
-    "BASE_DIR",
     "BACKEND_DIR",
     "PROJECT_ROOT",
     "CACHE_DIR",
