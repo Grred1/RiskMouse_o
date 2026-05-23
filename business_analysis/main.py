@@ -4,12 +4,26 @@ import json
 from datetime import datetime
 import akshare as ak
 import pandas as pd
-import requests
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from config import DEEPSEEK_API_KEY, BASE_DIR
+from config import BASE_DIR
+
+# Coze SDK 导入
+from coze_coding_dev_sdk import LLMClient
+from coze_coding_utils.runtime_ctx.context import new_context
+from langchain_core.messages import HumanMessage
+
+# 创建全局 LLM 客户端
+_llm_client = None
+
+def get_llm_client() -> LLMClient:
+    global _llm_client
+    if _llm_client is None:
+        ctx = new_context(method="invoke")
+        _llm_client = LLMClient(ctx=ctx)
+    return _llm_client
 
 # 文件缓存目录
 CACHE_DIR = os.path.join(BASE_DIR, "cache")
@@ -220,10 +234,6 @@ def get_zygc(
 
 @app.post("/api/analyze")
 def analyze_zygc(data: dict):
-    key = DEEPSEEK_API_KEY
-    if not key:
-        return JSONResponse({"analysis": "请先在 config.py 中配置 DEEPSEEK_API_KEY 以启用 AI 解读功能"}, status_code=200)
-
     symbol = data.get("symbol", "")
     latest_data = data.get("latestData", {})
 
@@ -238,39 +248,34 @@ def analyze_zygc(data: dict):
             product_data=json.dumps(latest_data.get("按产品分类", []), ensure_ascii=False, indent=2),
             region_data=json.dumps(latest_data.get("按地区分类", []), ensure_ascii=False, indent=2),
         )
-        try:
-            resp = requests.post(
-                "https://api.deepseek.com/v1/chat/completions",
-                headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-                json={"model": "deepseek-chat", "messages": [{"role": "user", "content": prompt}], "temperature": 0.7, "max_tokens": 500},
-                timeout=30,
-            )
-            result = resp.json()
-            if "choices" in result and len(result["choices"]) > 0:
-                return result["choices"][0]["message"]["content"]
-            return f"API 返回异常: {result}"
-        except Exception as e:
-            return f"AI 解读请求失败: {str(e)}"
+        return _call_coze(prompt, max_tokens=500)
 
     analysis = _cached_ai(symbol, cache_key, do_analyze)
     return {"analysis": analysis}
 
 
-def _call_deepseek(prompt: str) -> str:
-    key = DEEPSEEK_API_KEY
-    if not key:
-        return "请先在 config.py 中配置 DEEPSEEK_API_KEY 以启用 AI 解读功能"
+def _call_coze(prompt: str, max_tokens: int = 600) -> str:
+    """使用 Coze SDK 调用大语言模型"""
     try:
-        resp = requests.post(
-            "https://api.deepseek.com/v1/chat/completions",
-            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-            json={"model": "deepseek-chat", "messages": [{"role": "user", "content": prompt}], "temperature": 0.7, "max_tokens": 600},
-            timeout=30,
+        client = get_llm_client()
+        messages = [HumanMessage(content=prompt)]
+        response = client.invoke(
+            messages=messages,
+            temperature=0.7,
+            max_completion_tokens=max_tokens,
         )
-        result = resp.json()
-        if "choices" in result and len(result["choices"]) > 0:
-            return result["choices"][0]["message"]["content"]
-        return f"API 返回异常: {result}"
+        # 处理可能的响应格式
+        content = response.content
+        if isinstance(content, str):
+            return content
+        elif isinstance(content, list):
+            if content and isinstance(content[0], str):
+                return " ".join(content)
+            else:
+                # 处理 dict 格式的多模态响应
+                text_parts = [item.get("text", "") for item in content if isinstance(item, dict) and item.get("type") == "text"]
+                return " ".join(text_parts)
+        return str(content)
     except Exception as e:
         return f"AI 解读请求失败: {str(e)}"
 
@@ -458,7 +463,7 @@ def analyze_financial(data: dict):
             "revenue_trend": json.dumps(profit_trend[-5:] if len(profit_trend) > 5 else profit_trend, ensure_ascii=False, indent=2),
             "profit_trend": json.dumps(profit_trend[-5:] if len(profit_trend) > 5 else profit_trend, ensure_ascii=False, indent=2),
         }
-        return _call_deepseek(health_prompt.format(**health_vars)) if health_prompt else "暂无模板"
+        return _call_coze(health_prompt.format(**health_vars)) if health_prompt else "暂无模板"
 
     def do_growth():
         growth_prompt = FINANCIAL_GROWTH_TEMPLATE
@@ -474,7 +479,7 @@ def analyze_financial(data: dict):
             "asset_expansion": json.dumps(asset_expansion[-5:] if len(asset_expansion) > 5 else asset_expansion, ensure_ascii=False, indent=2),
             "profitability_trend": json.dumps(profit_trend[-5:] if len(profit_trend) > 5 else profit_trend, ensure_ascii=False, indent=2),
         }
-        return _call_deepseek(growth_prompt.format(**growth_vars)) if growth_prompt else "暂无模板"
+        return _call_coze(growth_prompt.format(**growth_vars)) if growth_prompt else "暂无模板"
 
     health_result = _cached_ai(symbol, f"{cache_key}_health", do_health)
     growth_result = _cached_ai(symbol, f"{cache_key}_growth", do_growth)
@@ -589,7 +594,7 @@ def analyze_zt_stock(data: dict):
         industry=industry, zygc=zygc_text, logic=logic,
     )
 
-    analysis = _call_deepseek(prompt)
+    analysis = _call_coze(prompt)
 
     return {
         "code": code,

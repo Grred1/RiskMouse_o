@@ -7,7 +7,6 @@ from datetime import datetime, timedelta
 
 import akshare as ak
 import pandas as pd
-import requests
 
 # 将项目根目录加入 path，以便引入 config
 _current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -15,7 +14,10 @@ _project_root = os.path.dirname(_current_dir)
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
-from business_analysis.config import DEEPSEEK_API_KEY
+# Coze SDK 导入
+from coze_coding_dev_sdk import LLMClient
+from coze_coding_utils.runtime_ctx.context import new_context
+from langchain_core.messages import HumanMessage
 
 CACHE_DIR = os.path.join(_current_dir, "cache")
 os.makedirs(CACHE_DIR, exist_ok=True)
@@ -56,28 +58,30 @@ def format_pct(val):
     return round(float(val) * 100, 2)
 
 
-def call_deepseek(prompt: str, max_tokens: int = 1200) -> str:
-    if not DEEPSEEK_API_KEY:
-        return "请先在 config.py 中配置 DEEPSEEK_API_KEY"
+def call_coze(prompt: str, max_tokens: int = 1200) -> str:
+    """使用 Coze SDK 调用大语言模型"""
     try:
-        resp = requests.post(
-            "https://api.deepseek.com/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": "deepseek-chat",
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.7,
-                "max_tokens": max_tokens,
-            },
-            timeout=60,
+        ctx = new_context(method="invoke")
+        client = LLMClient(ctx=ctx)
+        messages = [HumanMessage(content=prompt)]
+        response = client.invoke(
+            messages=messages,
+            temperature=0.7,
+            max_completion_tokens=max_tokens,
         )
-        result = resp.json()
-        if "choices" in result and len(result["choices"]) > 0:
-            return result["choices"][0]["message"]["content"]
-        return f"API 返回异常: {result}"
+        # 处理可能的响应格式
+        content = response.content
+        if isinstance(content, str):
+            return content
+        elif isinstance(content, list):
+            if content and isinstance(content[0], str):
+                return " ".join(content)
+            else:
+                text_parts = [item.get("text", "") for item in content if isinstance(item, dict) and item.get("type") == "text"]
+                return " ".join(text_parts)
+        return str(content)
+    except Exception as e:
+        return f"AI 解读请求失败: {str(e)}"
     except Exception as e:
         return f"请求失败: {str(e)}"
 
@@ -208,7 +212,7 @@ def analyze_risk(
         zygc=zygc_summary,
         logic="\n".join(f"{i+1}. {line}" for i, line in enumerate(logic_lines)),
     )
-    return call_deepseek(prompt, max_tokens=1200)
+    return call_coze(prompt, max_tokens=1200)
 
 
 # ── 主流程 ────────────────────────────────────────────
