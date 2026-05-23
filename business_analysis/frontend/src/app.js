@@ -8,6 +8,26 @@ import { initFinanceModule } from './components/finance/FinanceAnalysis.js';
 import { initSentimentModule } from './components/sentiment/SentimentAnalysis.js';
 
 /**
+ * 切换功能模块
+ */
+function switchFeature(feature) {
+    // 更新导航状态
+    document.querySelectorAll('.nav-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.feature === feature);
+    });
+    
+    // 切换内容面板
+    document.querySelectorAll('.feature-panel').forEach(panel => {
+        panel.classList.toggle('active', panel.id === `panel-${feature}`);
+    });
+    
+    console.log('切换到:', feature);
+}
+
+// 挂载到全局作用域，供 onclick 调用
+window.switchFeature = switchFeature;
+
+/**
  * 初始化应用
  */
 function initApp() {
@@ -17,6 +37,9 @@ function initApp() {
     initMacroCalendar();
     initFinanceModule();
     initSentimentModule();
+    
+    // 默认显示财报风险面板
+    switchFeature('finance');
     
     // 设置默认日期为今天
     const dateInputs = document.querySelectorAll('input[type="date"]');
