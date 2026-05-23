@@ -1,0 +1,288 @@
+"""
+财报风险分析 API
+"""
+from __future__ import annotations
+
+import json
+from typing import Optional
+
+import akshare as ak
+import pandas as pd
+from fastapi import APIRouter, HTTPException, Query
+
+from ..core import (
+    format_num,
+    format_pct,
+    normalize_symbol,
+    extract_pure_code,
+    get_stock_name,
+    read_cache,
+    write_cache,
+    load_prompts,
+    call_llm,
+    cached_llm_call,
+)
+
+router = APIRouter(prefix="/api", tags=["财报风险"])
+
+# 加载提示词
+PROMPTS = load_prompts()
+ZYGC_PROMPT_TEMPLATE = PROMPTS.get("ZYGC_PROMPT_TEMPLATE", "")
+FINANCIAL_HEALTH_TEMPLATE = PROMPTS.get("FINANCIAL_HEALTH_TEMPLATE", "")
+FINANCIAL_GROWTH_TEMPLATE = PROMPTS.get("FINANCIAL_GROWTH_TEMPLATE", "")
+
+# 财务数据列定义
+_PROFIT_KEY_COLS = [
+    "REPORT_DATE", "TOTAL_OPERATE_INCOME", "TOTAL_OPERATE_INCOME_YOY",
+    "OPERATE_INCOME", "TOTAL_OPERATE_COST", "OPERATE_COST",
+    "OPERATE_PROFIT", "TOTAL_PROFIT", "NETPROFIT",
+    "PARENT_NETPROFIT", "DEDUCT_PARENT_NETPROFIT",
+]
+
+_BALANCE_KEY_COLS = [
+    "MONETARYFUNDS", "ADVANCE_RECEIVABLES", "INVENTORY",
+    "TOTAL_CURRENT_ASSETS", "TOTAL_NONCURRENT_ASSETS", "TOTAL_ASSETS",
+    "TOTAL_CURRENT_LIAB", "TOTAL_NONCURRENT_LIAB", "TOTAL_LIABILITIES",
+    "TOTAL_EQUITY", "TOTAL_PARENT_EQUITY",
+]
+
+_CASHFLOW_KEY_COLS = [
+    "MANAGE_EXPENSE", "SALE_EXPENSE", "FINANCE_EXPENSE",
+    "OPERATE_TAX_ADD",
+]
+
+
+def _safe_val(row, col: str):
+    """安全获取数值"""
+    if col not in row:
+        return None
+    val = row[col]
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return None
+    return val
+
+
+@router.get("/zygc")
+def get_zygc(
+    symbol: str = Query(..., description="股票代码"),
+    refresh: bool = Query(False, description="是否强制刷新"),
+):
+    """获取主营构成数据"""
+    try:
+        symbol = normalize_symbol(symbol)
+
+        # 检查缓存
+        if not refresh:
+            cached = read_cache(symbol)
+            if cached:
+                return cached
+
+        df = ak.stock_zygc_em(symbol=symbol)
+        if df is None or df.empty:
+            raise HTTPException(status_code=404, detail="未获取到数据")
+
+        records = []
+        for _, row in df.iterrows():
+            records.append({
+                "股票代码": str(row["股票代码"]),
+                "报告日期": str(row["报告日期"]),
+                "分类类型": str(row["分类类型"]),
+                "主营构成": str(row["主营构成"]),
+                "主营收入": format_num(row["主营收入"]),
+                "收入比例": format_pct(row["收入比例"]),
+                "主营成本": format_num(row["主营成本"]),
+                "成本比例": format_pct(row["成本比例"]),
+                "主营利润": format_num(row["主营利润"]),
+                "利润比例": format_pct(row["利润比例"]),
+                "毛利率": format_pct(row["毛利率"]),
+            })
+
+        report_dates = sorted(list(set(r["报告日期"] for r in records)), reverse=True)
+        categories = sorted(list(set(r["分类类型"] for r in records)))
+        code = extract_pure_code(symbol)
+        name = get_stock_name(code)
+
+        result = {
+            "symbol": symbol,
+            "code": code,
+            "name": name,
+            "records": records,
+            "report_dates": report_dates,
+            "categories": categories,
+            "total": len(records),
+            "from_cache": False,
+        }
+
+        write_cache(symbol, result)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取数据失败: {str(e)}")
+
+
+@router.post("/analyze/zygc")
+def analyze_zygc(data: dict):
+    """AI 解读主营构成"""
+    symbol = data.get("symbol", "")
+    latest_data = data.get("latestData", {})
+
+    dates = sorted(
+        set(r.get("报告日期", "") for cat in latest_data.values() for r in cat),
+        reverse=True,
+    )
+    cache_key = f"_zygc_{dates[0]}" if dates else "_zygc"
+
+    def do_analyze():
+        prompt = ZYGC_PROMPT_TEMPLATE.format(
+            symbol=symbol,
+            industry_data=json.dumps(latest_data.get("按行业分类", []), ensure_ascii=False, indent=2),
+            product_data=json.dumps(latest_data.get("按产品分类", []), ensure_ascii=False, indent=2),
+            region_data=json.dumps(latest_data.get("按地区分类", []), ensure_ascii=False, indent=2),
+        )
+        return call_llm(prompt, max_tokens=500)
+
+    analysis = cached_llm_call(symbol, cache_key, do_analyze)
+    return {"analysis": analysis}
+
+
+@router.get("/financial")
+def get_financial(
+    symbol: str = Query(..., description="股票代码"),
+    refresh: bool = Query(False, description="是否强制刷新"),
+):
+    """获取财务数据"""
+    try:
+        symbol = normalize_symbol(symbol)
+        code = extract_pure_code(symbol)
+        name = get_stock_name(code)
+
+        # 检查缓存
+        cache_file = f"{symbol}_financial.json"
+        if not refresh:
+            cached = read_cache(code, module="financial")
+            if cached:
+                return cached
+
+        # 1. 利润表
+        try:
+            profit_df = ak.stock_profit_indicator_by_report_em(symbol=code)
+            profit_records = []
+            if profit_df is not None:
+                for _, row in profit_df.iterrows():
+                    rec = {"REPORT_DATE": str(row["REPORT_DATE"])[:10]}
+                    for c in _PROFIT_KEY_COLS[1:]:
+                        rec[c] = _safe_val(row, c)
+                    profit_records.append(rec)
+        except Exception:
+            profit_records = []
+
+        # 2. 资产负债表
+        try:
+            balance_df = ak.stock_balance_indicator_by_report_em(symbol=code)
+            balance_records = []
+            if balance_df is not None:
+                for _, row in balance_df.iterrows():
+                    rec = {"REPORT_DATE": str(row["REPORT_DATE"])[:10]}
+                    for c in _BALANCE_KEY_COLS[1:]:
+                        rec[c] = _safe_val(row, c)
+                    balance_records.append(rec)
+        except Exception:
+            balance_records = []
+
+        # 3. 现金流量表
+        try:
+            cash_df = ak.stock_cashflow_by_report_em(symbol=code)
+            cash_records = []
+            if cash_df is not None:
+                for _, row in cash_df.iterrows():
+                    rec = {"REPORT_DATE": str(row["REPORT_DATE"])[:10]}
+                    for c in _CASHFLOW_KEY_COLS:
+                        rec[c] = _safe_val(row, c)
+                    cash_records.append(rec)
+        except Exception:
+            cash_records = []
+
+        # 4. 财务摘要
+        try:
+            abstract = ak.stock_financial_abstract_ths(symbol=code)
+            abstract_records = abstract.to_dict("records") if abstract is not None else []
+        except Exception:
+            abstract_records = []
+
+        result = {
+            "symbol": symbol,
+            "code": code,
+            "name": name,
+            "profit_sheet": profit_records,
+            "balance_sheet": balance_records,
+            "cash_flow": cash_records,
+            "financial_abstract": abstract_records,
+            "from_cache": False,
+        }
+
+        write_cache(code, result, module="financial")
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取财务数据失败: {str(e)}")
+
+
+@router.post("/analyze/financial")
+def analyze_financial(data: dict):
+    """AI 分析财务数据"""
+    symbol = data.get("symbol", "")
+    code = data.get("code", "")
+    name = data.get("name", "")
+    latest_abstract = data.get("latestAbstract", {})
+    latest_date = str(latest_abstract.get("报告期", ""))[:10] if latest_abstract.get("报告期") else ""
+
+    cache_key = f"_fin_{latest_date}" if latest_date else "_fin"
+
+    def do_health():
+        health_prompt = FINANCIAL_HEALTH_TEMPLATE
+        profit_trend = data.get("profitTrend", [])
+        balance_latest = data.get("balanceLatest", {})
+        cash_latest = data.get("cashLatest", {})
+
+        health_vars = {
+            "symbol": symbol,
+            "name": name,
+            "latest_date": latest_date,
+            "revenue": f"{latest_abstract.get('营业总收入', 'N/A')}",
+            "revenue_yoy": f"{latest_abstract.get('营业总收入同比增长率', 'N/A')}",
+            "net_profit": f"{latest_abstract.get('净利润', 'N/A')}",
+            "net_profit_yoy": f"{latest_abstract.get('净利润同比增长率', 'N/A')}",
+            "gross_margin": f"{latest_abstract.get('销售毛利率', 'N/A')}",
+            "net_margin": f"{latest_abstract.get('销售净利率', 'N/A')}",
+            "roe": f"{latest_abstract.get('净资产收益率', 'N/A')}",
+            "debt_ratio": f"{latest_abstract.get('资产负债率', 'N/A')}",
+            "operate_cash_flow": f"{latest_abstract.get('每股经营现金流', 'N/A')}",
+            "profit_sheet": json.dumps(balance_latest, ensure_ascii=False, indent=2),
+            "balance_sheet": json.dumps(balance_latest, ensure_ascii=False, indent=2),
+            "cash_flow_sheet": json.dumps(cash_latest, ensure_ascii=False, indent=2),
+            "revenue_trend": json.dumps(profit_trend[-5:] if len(profit_trend) > 5 else profit_trend, ensure_ascii=False, indent=2),
+            "profit_trend": json.dumps(profit_trend[-5:] if len(profit_trend) > 5 else profit_trend, ensure_ascii=False, indent=2),
+        }
+        return call_llm(health_prompt.format(**health_vars)) if health_prompt else "暂无模板"
+
+    def do_growth():
+        growth_prompt = FINANCIAL_GROWTH_TEMPLATE
+        rd_data = data.get("rdData", [])
+        business_growth = data.get("businessGrowth", {})
+        asset_expansion = data.get("assetExpansion", [])
+        profit_trend = data.get("profitTrend", [])
+
+        growth_vars = {
+            "symbol": symbol,
+            "name": name,
+            "rd_data": json.dumps(rd_data[-5:] if len(rd_data) > 5 else rd_data, ensure_ascii=False, indent=2),
+            "business_growth": json.dumps(business_growth, ensure_ascii=False, indent=2),
+            "asset_expansion": json.dumps(asset_expansion[-5:] if len(asset_expansion) > 5 else asset_expansion, ensure_ascii=False, indent=2),
+            "profitability_trend": json.dumps(profit_trend[-5:] if len(profit_trend) > 5 else profit_trend, ensure_ascii=False, indent=2),
+        }
+        return call_llm(growth_prompt.format(**growth_vars)) if growth_prompt else "暂无模板"
+
+    health_result = cached_llm_call(symbol, f"{cache_key}_health", do_health)
+    growth_result = cached_llm_call(symbol, f"{cache_key}_growth", do_growth)
+
+    return {"health": health_result, "growth": growth_result}
