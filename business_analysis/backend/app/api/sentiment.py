@@ -1,5 +1,5 @@
 """
-舆论风险分析 API
+风险挖掘分析 API
 """
 from __future__ import annotations
 
@@ -16,50 +16,134 @@ from ..core import (
     call_llm,
 )
 
-router = APIRouter(prefix="/api", tags=["舆论风险"])
+router = APIRouter(prefix="/api", tags=["风险挖掘"])
 
 # 加载提示词
 PROMPTS = load_prompts()
-ZT_RISK_PROMPT = PROMPTS.get("ZT_RISK_PROMPT", "")
+RISK_ANALYSIS_PROMPT = PROMPTS.get("RISK_ANALYSIS", """
+你是一位专业的证券风险分析师。请对以下热门关注标的进行**全面的风险评估**。
+
+======== 基本信息 ========
+名称: {name}({code})
+关注来源: {source}
+所属行业: {industry}
+
+======== 主营构成（最新报告期） ========
+{zygc}
+
+======== 市场关注点 ========
+{attention}
+
+======== 分析要求 ========
+请从以下几个维度进行风险评估（500字以内）：
+
+1. **基本面风险**：主营业务的盈利能力、成长性、可持续性如何？是否有隐忧？
+2. **舆情风险**：市场关注度是否理性？是否存在过度炒作风险？
+3. **估值风险**：当前估值是否合理？是否存在泡沫？
+4. **潜在风险因素**：有哪些值得关注的潜在风险点？
+5. **综合风险评级**：给出 低风险/中低风险/中高风险/高风险 评级，并给出简要理由
+
+请务必客观中立，不构成投资建议，仅为风险分析参考。
+""")
 
 
-@router.get("/zt/pool")
-def get_zt_pool(
-    date: str = Query("", description="日期 YYYYMMDD，默认今天"),
+@router.get("/risk/pool")
+def get_risk_pool(
+    date: str = Query("", description="日期 YYYYMMDD，默认最新"),
 ):
-    """获取涨停池数据"""
+    """获取热门关注池数据（涨停板 + 龙虎榜）"""
     try:
+        # 1. 获取涨停池数据
         target_date = date if date else datetime.now().strftime("%Y%m%d")
-        df = ak.stock_zt_pool_em(date=target_date)
-        if df is None or df.empty:
-            return {"stocks": [], "total": 0, "multi_board_total": 0, "date": target_date}
+        zt_stocks = []
+        try:
+            df_zt = ak.stock_zt_pool_em(date=target_date)
+            if df_zt is not None and not df_zt.empty:
+                for _, row in df_zt.iterrows():
+                    zt_stocks.append({
+                        "code": str(row.get("代码", "")),
+                        "name": str(row.get("名称", "")),
+                        "source": "涨停",
+                        "source_label": "🟣涨停",
+                        "board": int(row.get("连板数", 0) or 0),
+                        "industry": str(row.get("所属行业", "") or ""),
+                        "turnover": float(row.get("换手率", 0) or 0),
+                        "amount": float(row.get("成交额", 0) or 0),
+                        "market_cap": float(row.get("流通市值", 0) or 0),
+                    })
+        except Exception:
+            pass  # 涨停数据获取失败不影响整体
 
-        stocks = df.to_dict("records")
-        for s in stocks:
-            for k in ("成交额", "流通市值", "总市值"):
-                if k in s:
-                    s[k] = float(s[k]) if s[k] else 0
-            s["连板数"] = int(s.get("连板数", 0))
+        # 2. 获取龙虎榜数据
+        lhb_stocks = []
+        try:
+            df_lhb = ak.stock_lhb_detail_em()
+            if df_lhb is not None and not df_lhb.empty:
+                # 按代码去重，取最新一条
+                seen = {}
+                for _, row in df_lhb.iterrows():
+                    code = str(row.get("代码", ""))
+                    if code not in seen:
+                        net_amount = float(row.get("龙虎榜净买额", 0) or 0)
+                        seen[code] = {
+                            "code": code,
+                            "name": str(row.get("名称", "")),
+                            "source": "龙虎榜",
+                            "source_label": "🔥人气",
+                            "board": 0,
+                            "industry": "",  # 龙虎榜数据中没有行业字段
+                            "turnover": float(row.get("换手率", 0) or 0),
+                            "amount": float(row.get("龙虎榜成交额", 0) or 0),
+                            "market_cap": float(row.get("流通市值", 0) or 0),
+                            "net_amount": net_amount,  # 龙虎榜特有
+                            "reason": str(row.get("上榜原因", "") or ""),  # 龙虎榜特有
+                            "change_pct": float(row.get("涨跌幅", 0) or 0),  # 龙虎榜特有
+                        }
+                lhb_stocks = list(seen.values())
+        except Exception:
+            pass  # 龙虎榜数据获取失败不影响整体
 
-        multi = [s for s in stocks if s["连板数"] >= 2]
+        # 3. 合并数据
+        all_stocks = zt_stocks + lhb_stocks
+
+        # 统计
+        total = len(all_stocks)
+        high_risk_count = 0  # 后续可由 AI 评估填充
+
+        # 清理 NaN 值
+        def clean_stock(stock):
+            cleaned = {}
+            for k, v in stock.items():
+                if isinstance(v, float) and (v != v):  # NaN check
+                    cleaned[k] = 0
+                else:
+                    cleaned[k] = v
+            return cleaned
+
+        # 限制返回数量：涨停5个 + 龙虎榜5个
+        zt_limited = all_stocks[:5]
+        lhb_limited = all_stocks[5:10]
+        limited_stocks = zt_limited + lhb_limited
+
         return {
             "date": target_date,
-            "total": len(stocks),
-            "multi_board_total": len(multi),
-            "stocks": stocks,
+            "total": total,
+            "zt_count": len(zt_stocks),
+            "lhb_count": len(lhb_stocks),
+            "stocks": [clean_stock(s) for s in limited_stocks],
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取涨停数据失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"获取热门关注池失败: {str(e)}")
 
 
-@router.post("/zt/analyze")
-def analyze_zt_stock(data: dict):
-    """AI 风险评估涨停股"""
+@router.post("/risk/analyze")
+def analyze_risk_stock(data: dict):
+    """AI 风险评估热门关注标的"""
     code = data.get("code", "")
     name = data.get("name", "")
-    board = data.get("board", 1)
+    source = data.get("source", "")  # 涨停 / 龙虎榜
     industry = data.get("industry", "")
-    logic = data.get("logic", "")
+    attention = data.get("attention", "")
     symbol = normalize_symbol(code)
 
     # 获取主营构成
@@ -84,13 +168,13 @@ def analyze_zt_stock(data: dict):
     except Exception:
         zygc_text = "获取主营构成失败"
 
-    prompt = ZT_RISK_PROMPT.format(
+    prompt = RISK_ANALYSIS_PROMPT.format(
         name=name,
         code=code,
-        board=board,
+        source=source,
         industry=industry,
         zygc=zygc_text,
-        logic=logic,
+        attention=attention,
     )
 
     analysis = call_llm(prompt, max_tokens=600)
@@ -98,7 +182,7 @@ def analyze_zt_stock(data: dict):
     return {
         "code": code,
         "name": name,
-        "board": board,
+        "source": source,
         "zygc": zygc_text,
         "risk_analysis": analysis,
     }
@@ -116,6 +200,6 @@ def _zygc_summary(records: list) -> str:
         items = [r for r in records if r["报告日期"] == latest and r["分类类型"] == cat_type]
         if items:
             lines.append(f"\n{cat_type}:")
-            for item in sorted(items, key=lambda x: x["收入比例"], reverse=True):
+            for item in sorted(items, key=lambda x: x["收入比例"], reverse=True)[:10]:  # 最多10条
                 lines.append(f"  {item['主营构成']}: 收入占比 {item['收入比例']}%, 毛利率 {item['毛利率']}%")
     return "\n".join(lines)

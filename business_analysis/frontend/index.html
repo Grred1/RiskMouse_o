@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>风控系统</title>
+    <title>企业风控系统</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     <link rel="stylesheet" href="src/styles/common.css">
     <link rel="stylesheet" href="src/styles/finance.css">
@@ -12,12 +12,12 @@
 <body>
 
 <div class="header">
-    <h1>🛡️ 风控系统</h1>
-    <p>宏观日历 · 财报风险 · 舆论风险</p>
+    <h1>🛡️ 企业风控系统</h1>
+    <p>宏观日历 · 财报风险 · 风险挖掘</p>
     <div class="nav-tabs">
         <div class="nav-tab active" data-feature="macro" onclick="switchFeature('macro')">📅 宏观日历</div>
         <div class="nav-tab" data-feature="finance" onclick="switchFeature('finance')">📊 财报风险</div>
-        <div class="nav-tab" data-feature="zt" onclick="switchFeature('zt')">📰 舆论风险</div>
+        <div class="nav-tab" data-feature="risk" onclick="switchFeature('risk')">📰 风险挖掘</div>
     </div>
 </div>
 
@@ -38,189 +38,133 @@
             <input type="text" id="symbolInput" placeholder="输入 6 位股票代码，如 002081、600519..." maxlength="10">
             <button id="searchBtn" onclick="search()">查询</button>
         </div>
-        <div class="examples">
-            快速尝试：
-            <span onclick="quickSearch('002081')">002081 金螳螂</span>
-            <span onclick="quickSearch('600519')">600519 贵州茅台</span>
-            <span onclick="quickSearch('000858')">000858 五粮液</span>
-            <span onclick="quickSearch('688041')">688041 海光信息</span>
+
+        <div id="stockTitle" class="stock-title" style="display:none;"></div>
+
+        <!-- KPI 卡片 -->
+        <div class="kpi-row" id="kpiRow" style="display:none;"></div>
+
+        <!-- 标签切换 -->
+        <div class="tab-bar" id="reportTabBar" style="display:none;">
+            <div class="tab active" onclick="switchTab(this, 'finance-growth')">📈 财务增长</div>
+            <div class="tab" onclick="switchTab(this, 'finance-balance')">📊 资产负债</div>
+            <div class="tab" onclick="switchTab(this, 'finance-cashflow')">💰 现金流</div>
+            <div class="tab" onclick="switchTab(this, 'finance-research')">🔬 研发投入</div>
+            <div class="tab" onclick="switchTab(this, 'finance-expense')">📉 费用率</div>
+            <div class="tab" onclick="switchTab(this, 'finance-zygc')">🏭 主营构成</div>
+            <div class="tab" onclick="switchTab(this, 'finance-full')">🔍 财务全景</div>
         </div>
 
-        <div class="error-msg" id="errorMsg"></div>
-
-        <div class="stock-info" id="stockInfo">
-            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
-                <div>
-                    <div class="name" id="stockName">-</div>
-                    <div class="meta" id="stockMeta">-</div>
-                </div>
-                <div style="display:flex;align-items:center;gap:8px;">
-                    <span id="cacheBadge" style="font-size:12px;color:#888;display:none;">📦 缓存</span>
-                    <button id="refreshBtn" onclick="refreshData()" style="padding:6px 16px;background:#e8ecf1;border:none;border-radius:6px;font-size:13px;cursor:pointer;color:#555;display:none;">🔄 更新数据</button>
-                </div>
-            </div>
-        </div>
-
-        <div class="report-selector" id="reportSelector">
-            <label>报告期：</label>
+        <!-- 报告期选择器 -->
+        <div class="select-row" id="reportSelectRow" style="display:none;">
             <select id="reportSelect" onchange="onReportChange()"></select>
         </div>
 
-        <div class="tabs" id="tabs">
-            <div class="tab active" data-tab="industry" onclick="switchTab('industry')">按行业</div>
-            <div class="tab" data-tab="product" onclick="switchTab('product')">按产品</div>
-            <div class="tab" data-tab="region" onclick="switchTab('region')">按地区</div>
+        <!-- 图表区域 -->
+        <div class="feature-section" id="feature-finance" style="padding:0;margin:0;display:block;">
+            <div class="tab-content active" id="finance-growth">
+                <div class="panel"><div id="chart-research" class="chart-container" style="height:300px;display:none;"></div></div>
+                <div class="panel"><div id="chart-expense" class="chart-container" style="height:300px;display:none;"></div></div>
+            </div>
+            <div class="tab-content" id="finance-balance"></div>
+            <div class="tab-content" id="finance-cashflow"></div>
+            <div class="tab-content" id="finance-research"></div>
+            <div class="tab-content" id="finance-expense"></div>
+            <div class="tab-content" id="finance-zygc"></div>
+            <div class="tab-content" id="finance-full"></div>
         </div>
 
-        <div class="loading-overlay" id="loadingOverlay">
-            <div class="spinner"></div>
-            <div id="loadingText">正在获取数据...</div>
+        <!-- 主营构成表格 -->
+        <div class="panel" id="zygcPanel" style="display:none;">
+            <h3>🏭 主营构成详情</h3>
+            <div style="display:flex;gap:16px;margin-bottom:12px;">
+                <select id="zygcReportSelect" onchange="onZygcReportChange()">
+                    <option value="">选择报告期</option>
+                </select>
+                <select id="zygcTypeSelect" onchange="onZygcTypeChange()">
+                    <option value="industry">按行业</option>
+                    <option value="product">按产品</option>
+                    <option value="region">按地区</option>
+                </select>
+            </div>
+            <div id="zygcTableContainer"></div>
         </div>
 
-        <div id="mainContent" style="display:none;">
-            <div class="tab-content active" id="tab-industry">
-                <div class="panel">
-                    <h3>行业分类 - 收入与利润构成</h3>
-                    <div class="chart-container" id="chart-industry"></div>
-                    <div style="margin-top:16px;overflow-x:auto;"><table id="table-industry"></table></div>
-                </div>
+        <!-- AI 分析 -->
+        <div class="panel ai-analysis" id="aiSection" style="display:none;">
+            <h3>🤖 AI 财务风险分析</h3>
+            <div class="loading" id="aiLoading" style="display:none;">
+                <div class="spinner"></div>
+                <span>AI 分析中...</span>
             </div>
-            <div class="tab-content" id="tab-product">
-                <div class="panel">
-                    <h3>产品分类 - 收入与利润构成</h3>
-                    <div class="chart-container" id="chart-product"></div>
-                    <div style="margin-top:16px;overflow-x:auto;"><table id="table-product"></table></div>
-                </div>
-            </div>
-            <div class="tab-content" id="tab-region">
-                <div class="panel">
-                    <h3>地区分类 - 收入与利润构成</h3>
-                    <div class="chart-container" id="chart-region"></div>
-                    <div style="margin-top:16px;overflow-x:auto;"><table id="table-region"></table></div>
-                </div>
-            </div>
-
-            <div class="ai-section" id="aiSection">
-                <h3><span>AI 解读</span><span class="badge">Coze</span></h3>
-                <div class="ai-loading" id="aiLoading">正在生成解读...</div>
-                <div class="ai-content" id="aiContent"></div>
-            </div>
-        </div>
-
-        <div class="section-header" id="finSectionHeader" style="display:none;">
-            <span class="section-title">📊 财务全景分析</span>
-            <span style="font-size:13px;color:#888;margin-left:8px;">健康性 · 增长潜力</span>
-        </div>
-        <div id="financialContent" style="display:none;">
-            <div class="sub-tabs">
-                <div class="sub-tab active" onclick="switchSubTab('health')">健康性分析</div>
-                <div class="sub-tab" onclick="switchSubTab('growth')">增长分析</div>
-            </div>
-
-            <div class="sub-tab-content active" id="subtab-health">
-                <div class="panel">
-                    <h3>核心指标</h3>
-                    <div class="kpi-grid" id="kpiGrid"></div>
-                </div>
-                <div class="panel">
-                    <h3>营收与净利润趋势</h3>
-                    <div class="chart-container" id="chart-revenue-trend"></div>
-                </div>
-                <div class="panel">
-                    <h3>资产负债结构</h3>
-                    <div class="chart-container" id="chart-balance"></div>
-                </div>
-                <div class="panel">
-                    <h3>现金流状况</h3>
-                    <div class="chart-container" id="chart-cashflow"></div>
-                </div>
-                <div class="ai-section" id="aiHealthSection" style="display:none;">
-                    <h3><span>AI 健康性分析</span><span class="badge">Coze</span></h3>
-                    <div class="ai-loading" id="aiHealthLoading">正在生成解读...</div>
-                    <div class="ai-content" id="aiHealthContent"></div>
-                </div>
-            </div>
-
-            <div class="sub-tab-content" id="subtab-growth">
-                <div class="panel">
-                    <h3>研发投入趋势</h3>
-                    <div class="chart-container-lg" id="chart-rd"></div>
-                </div>
-                <div class="panel">
-                    <h3>各项费用率趋势</h3>
-                    <div class="chart-container-lg" id="chart-expense"></div>
-                </div>
-                <div class="panel">
-                    <h3>资产扩张</h3>
-                    <div class="chart-container-lg" id="chart-asset-expansion"></div>
-                </div>
-                <div class="panel">
-                    <h3>盈利能力趋势</h3>
-                    <div class="chart-container-lg" id="chart-profitability"></div>
-                </div>
-                <div class="ai-section" id="aiGrowthSection" style="display:none;">
-                    <h3><span>AI 增长分析</span><span class="badge">Coze</span></h3>
-                    <div class="ai-loading" id="aiGrowthLoading">正在生成解读...</div>
-                    <div class="ai-content" id="aiGrowthContent"></div>
-                </div>
-            </div>
+            <div id="aiContent"></div>
         </div>
     </div>
 
-    <!-- ===== 舆论风险 ===== -->
-    <div class="feature-section" id="feature-zt">
+    <!-- ===== 风险挖掘 ===== -->
+    <div class="feature-section" id="feature-risk">
+        <div style="display:grid;grid-template-columns:400px 1fr;gap:20px;height:calc(100vh - 160px);">
+            <!-- 左侧：热门关注列表 -->
+            <div style="display:flex;flex-direction:column;">
+                <div class="zt-toolbar">
+                    <label>📅 日期：</label>
+                    <input type="date" id="ztDateInput">
+                    <span id="ztSummary" class="zt-summary"></span>
+                </div>
 
-        <div class="zt-toolbar">
-            <label>📅 日期：</label>
-            <input type="date" id="ztDateInput">
-            <button id="ztFetchBtn" onclick="fetchZTPool()">🔄 获取涨停数据</button>
-            <span id="ztSummary" class="zt-summary"></span>
-        </div>
+                <div class="zt-error" id="ztError"></div>
 
-        <div class="zt-error" id="ztError"></div>
-
-        <div class="panel">
-            <h3>📋 今日涨停列表 <span style="font-size:12px;font-weight:400;color:#888;">（点击二板以上股票查看详情分析）</span></h3>
-            <div style="overflow-x:auto;">
-                <table>
-                    <thead>
-                        <tr>
-                            <th style="text-align:center;width:40px;">#</th>
-                            <th style="text-align:left;">代码</th>
-                            <th style="text-align:left;">名称</th>
-                            <th style="text-align:center;">连板</th>
-                            <th style="text-align:right;">涨幅</th>
-                            <th style="text-align:left;">行业</th>
-                            <th style="text-align:right;">封单</th>
-                        </tr>
-                    </thead>
-                    <tbody id="ztTableBody">
-                        <tr><td colspan="7" style="text-align:center;color:#999;padding:30px;">点击上方「获取涨停数据」开始分析</td></tr>
-                    </tbody>
-                </table>
+                <div class="panel" style="flex:1;overflow:hidden;display:flex;flex-direction:column;">
+                    <h3>📋 热门关注 <span style="font-size:12px;font-weight:400;color:#888;">（点击查看详情）</span></h3>
+                    <div id="ztFilters" style="display:none;margin-bottom:12px;">
+                        <select id="sourceFilter" onchange="filterRiskPool()" style="padding:4px 8px;border-radius:4px;border:1px solid #ddd;">
+                            <option value="all">全部</option>
+                            <option value="涨停">🟣涨停</option>
+                            <option value="龙虎榜">🔥龙虎</option>
+                        </select>
+                        <select id="industryFilter" onchange="filterRiskPool()" style="padding:4px 8px;border-radius:4px;border:1px solid #ddd;margin-left:8px;">
+                            <option value="all">全部行业</option>
+                        </select>
+                    </div>
+                    <div style="flex:1;overflow-y:auto;" id="ztListContainer">
+                        <table style="width:100%;">
+                            <thead>
+                                <tr>
+                                    <th style="text-align:left;">代码</th>
+                                    <th style="text-align:left;">名称</th>
+                                    <th style="text-align:center;">来源</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ztTableBody">
+                                <tr><td colspan="3" style="text-align:center;color:#999;padding:30px;">加载中...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
-        </div>
 
-        <div class="zt-detail-panel" id="ztDetailPanel" style="display:none;">
-            <div class="panel">
-                <h3 id="ztDetailHeader" style="color:#c0392b;">-</h3>
-                <div id="ztDetailLoading" class="loading-overlay" style="display:block;">
+            <!-- 右侧：详情面板 -->
+            <div class="panel" id="ztDetailPanel" style="height:100%;overflow-y:auto;">
+                <div id="ztDetailLoading" class="loading-overlay" style="display:flex;">
                     <div class="spinner"></div>
-                    <div>正在获取主营构成与 AI 分析...</div>
+                    <div style="margin-left:12px;">正在加载...</div>
                 </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
-                    <div style="background:#f7f8fa;border-radius:10px;padding:16px;">
-                        <h4 style="font-size:14px;margin-bottom:8px;color:#555;">📰 上涨逻辑</h4>
-                        <pre id="ztLogicArea" style="font-size:13px;line-height:1.7;color:#333;white-space:pre-wrap;font-family:inherit;"></pre>
+                <div id="ztDetailContent" style="display:none;">
+                    <h3 id="ztDetailHeader" style="color:#c0392b;">-</h3>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
+                        <div style="background:#f7f8fa;border-radius:10px;padding:16px;">
+                            <h4 style="font-size:14px;margin-bottom:8px;color:#555;">📰 市场关注点</h4>
+                            <pre id="ztLogicArea" style="font-size:13px;line-height:1.7;color:#333;white-space:pre-wrap;font-family:inherit;max-height:150px;overflow-y:auto;"></pre>
+                        </div>
+                        <div style="background:#f7f8fa;border-radius:10px;padding:16px;">
+                            <h4 style="font-size:14px;margin-bottom:8px;color:#555;">🏭 主营构成</h4>
+                            <pre id="ztZygcArea" style="font-size:13px;line-height:1.7;color:#333;white-space:pre-wrap;font-family:inherit;max-height:150px;overflow-y:auto;"></pre>
+                        </div>
                     </div>
-                    <div style="background:#f7f8fa;border-radius:10px;padding:16px;">
-                        <h4 style="font-size:14px;margin-bottom:8px;color:#555;">🏭 主营构成</h4>
-                        <pre id="ztZygcArea" style="font-size:13px;line-height:1.7;color:#333;white-space:pre-wrap;font-family:inherit;"></pre>
+                    <div style="background:linear-gradient(135deg,#fff5f5,#fff0f0);border-radius:10px;padding:16px;margin-top:16px;border:1px solid #ffd7d7;">
+                        <h4 style="font-size:14px;margin-bottom:8px;color:#c0392b;">🤖 AI 风险评估</h4>
+                        <pre id="ztAnalysisArea" style="font-size:13px;line-height:1.8;color:#444;white-space:pre-wrap;font-family:inherit;max-height:300px;overflow-y:auto;"></pre>
                     </div>
-                </div>
-                <div style="background:linear-gradient(135deg,#fff5f5,#fff0f0);border-radius:10px;padding:16px;margin-top:16px;border:1px solid #ffd7d7;">
-                    <h4 style="font-size:14px;margin-bottom:8px;color:#c0392b;">🤖 AI 风险评估</h4>
-                    <pre id="ztAnalysisArea" style="font-size:13px;line-height:1.8;color:#444;white-space:pre-wrap;font-family:inherit;"></pre>
                 </div>
             </div>
         </div>
@@ -229,7 +173,7 @@
 
 <script src="src/js/common.js"></script>
 <script src="src/js/finance.js"></script>
-<script src="src/js/zt.js"></script>
+<script src="src/js/risk.js"></script>
 <script src="src/js/macro.js"></script>
 </body>
 </html>
