@@ -33,10 +33,19 @@ FINANCIAL_GROWTH_TEMPLATE = PROMPTS.get("FINANCIAL_GROWTH_TEMPLATE", "")
 
 # 财务数据列定义
 _PROFIT_KEY_COLS = [
-    "REPORT_DATE", "TOTAL_OPERATE_INCOME", "TOTAL_OPERATE_INCOME_YOY",
+    "TOTAL_OPERATE_INCOME", "TOTAL_OPERATE_INCOME_YOY",
     "OPERATE_INCOME", "TOTAL_OPERATE_COST", "OPERATE_COST",
-    "OPERATE_PROFIT", "TOTAL_PROFIT", "NETPROFIT",
-    "PARENT_NETPROFIT", "DEDUCT_PARENT_NETPROFIT",
+    "OPERATE_PROFIT", "OPERATE_PROFIT_YOY",
+    "TOTAL_PROFIT", "TOTAL_PROFIT_YOY",
+    "NETPROFIT", "NETPROFIT_YOY",
+    "PARENT_NETPROFIT", "PARENT_NETPROFIT_YOY",
+    "DEDUCT_PARENT_NETPROFIT", "DEDUCT_PARENT_NETPROFIT_YOY",
+    "BASIC_EPS",
+    "RESEARCH_EXPENSE", "RESEARCH_EXPENSE_YOY",
+    "SALE_EXPENSE", "SALE_EXPENSE_YOY",
+    "MANAGE_EXPENSE", "MANAGE_EXPENSE_YOY",
+    "FINANCE_EXPENSE", "FINANCE_EXPENSE_YOY",
+    "OPERATE_TAX_ADD",
 ]
 
 _BALANCE_KEY_COLS = [
@@ -47,8 +56,8 @@ _BALANCE_KEY_COLS = [
 ]
 
 _CASHFLOW_KEY_COLS = [
-    "MANAGE_EXPENSE", "SALE_EXPENSE", "FINANCE_EXPENSE",
-    "OPERATE_TAX_ADD",
+    "NETCASH_OPERATE", "NETCASH_INVEST",
+    "NETCASH_FINANCE", "END_CASH_EQUIVALENTS",
 ]
 
 
@@ -59,7 +68,10 @@ def _safe_val(row, col: str):
     val = row[col]
     if val is None or (isinstance(val, float) and pd.isna(val)):
         return None
-    return val
+    try:
+        return round(float(val), 2)
+    except (ValueError, TypeError):
+        return None
 
 
 @router.get("/zygc")
@@ -166,39 +178,45 @@ def get_financial(
 
         # 1. 利润表
         try:
-            profit_df = ak.stock_profit_indicator_by_report_em(symbol=code)
+            profit_df = ak.stock_profit_sheet_by_report_em(symbol=symbol)
             profit_records = []
             if profit_df is not None:
+                profit_df = profit_df.sort_values("REPORT_DATE")
                 for _, row in profit_df.iterrows():
                     rec = {"REPORT_DATE": str(row["REPORT_DATE"])[:10]}
-                    for c in _PROFIT_KEY_COLS[1:]:
-                        rec[c] = _safe_val(row, c)
+                    for c in _PROFIT_KEY_COLS:
+                        if c in profit_df.columns:
+                            rec[c] = _safe_val(row, c)
                     profit_records.append(rec)
         except Exception:
             profit_records = []
 
         # 2. 资产负债表
         try:
-            balance_df = ak.stock_balance_indicator_by_report_em(symbol=code)
+            balance_df = ak.stock_balance_sheet_by_report_em(symbol=symbol)
             balance_records = []
             if balance_df is not None:
+                balance_df = balance_df.sort_values("REPORT_DATE")
                 for _, row in balance_df.iterrows():
                     rec = {"REPORT_DATE": str(row["REPORT_DATE"])[:10]}
-                    for c in _BALANCE_KEY_COLS[1:]:
-                        rec[c] = _safe_val(row, c)
+                    for c in _BALANCE_KEY_COLS:
+                        if c in balance_df.columns:
+                            rec[c] = _safe_val(row, c)
                     balance_records.append(rec)
         except Exception:
             balance_records = []
 
         # 3. 现金流量表
         try:
-            cash_df = ak.stock_cashflow_by_report_em(symbol=code)
+            cash_df = ak.stock_cash_flow_sheet_by_report_em(symbol=symbol)
             cash_records = []
             if cash_df is not None:
+                cash_df = cash_df.sort_values("REPORT_DATE")
                 for _, row in cash_df.iterrows():
                     rec = {"REPORT_DATE": str(row["REPORT_DATE"])[:10]}
                     for c in _CASHFLOW_KEY_COLS:
-                        rec[c] = _safe_val(row, c)
+                        if c in cash_df.columns:
+                            rec[c] = _safe_val(row, c)
                     cash_records.append(rec)
         except Exception:
             cash_records = []
