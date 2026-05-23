@@ -3,36 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>风控系统</title>
+    <title>A 股分析系统</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
-    <link rel="stylesheet" href="src/styles/common.css">
-    <link rel="stylesheet" href="src/styles/finance.css">
-    <link rel="stylesheet" href="src/styles/zt.css">
+    <link rel="stylesheet" href="css/common.css">
+    <link rel="stylesheet" href="css/finance.css">
+    <link rel="stylesheet" href="css/zt.css">
 </head>
 <body>
 
 <div class="header">
-    <h1>🛡️ 风控系统</h1>
-    <p>宏观日历 · 财报风险 · 舆论风险</p>
+    <h1>A 股分析系统</h1>
+    <p>多维财报分析 + 涨停叙事分析</p>
     <div class="nav-tabs">
-        <div class="nav-tab active" data-feature="macro" onclick="switchFeature('macro')">📅 宏观日历</div>
-        <div class="nav-tab" data-feature="finance" onclick="switchFeature('finance')">📊 财报风险</div>
-        <div class="nav-tab" data-feature="zt" onclick="switchFeature('zt')">📰 舆论风险</div>
+        <div class="nav-tab active" data-feature="finance" onclick="switchFeature('finance')">📈 多维财报</div>
+        <div class="nav-tab" data-feature="zt" onclick="switchFeature('zt')">🚀 涨停叙事</div>
     </div>
 </div>
 
 <div class="container">
 
-    <!-- ===== 宏观日历 ===== -->
-    <div class="feature-section active" id="feature-macro">
-        <div class="panel">
-            <h3>📅 宏观经济日历</h3>
-            <div id="macroCalendarContent"></div>
-        </div>
-    </div>
-
-    <!-- ===== 财报风险 ===== -->
-    <div class="feature-section" id="feature-finance">
+    <!-- ===== 多维财报 ===== -->
+    <div class="feature-section active" id="feature-finance">
 
         <div class="search-box">
             <input type="text" id="symbolInput" placeholder="输入 6 位股票代码，如 002081、600519..." maxlength="10">
@@ -101,7 +92,7 @@
             </div>
 
             <div class="ai-section" id="aiSection">
-                <h3><span>AI 解读</span><span class="badge">Coze</span></h3>
+                <h3><span>AI 解读</span><span class="badge">DeepSeek</span></h3>
                 <div class="ai-loading" id="aiLoading">正在生成解读...</div>
                 <div class="ai-content" id="aiContent"></div>
             </div>
@@ -135,7 +126,7 @@
                     <div class="chart-container" id="chart-cashflow"></div>
                 </div>
                 <div class="ai-section" id="aiHealthSection" style="display:none;">
-                    <h3><span>AI 健康性分析</span><span class="badge">Coze</span></h3>
+                    <h3><span>AI 健康性分析</span><span class="badge">DeepSeek</span></h3>
                     <div class="ai-loading" id="aiHealthLoading">正在生成解读...</div>
                     <div class="ai-content" id="aiHealthContent"></div>
                 </div>
@@ -159,7 +150,7 @@
                     <div class="chart-container-lg" id="chart-profitability"></div>
                 </div>
                 <div class="ai-section" id="aiGrowthSection" style="display:none;">
-                    <h3><span>AI 增长分析</span><span class="badge">Coze</span></h3>
+                    <h3><span>AI 增长分析</span><span class="badge">DeepSeek</span></h3>
                     <div class="ai-loading" id="aiGrowthLoading">正在生成解读...</div>
                     <div class="ai-content" id="aiGrowthContent"></div>
                 </div>
@@ -167,7 +158,7 @@
         </div>
     </div>
 
-    <!-- ===== 舆论风险 ===== -->
+    <!-- ===== 涨停叙事分析 ===== -->
     <div class="feature-section" id="feature-zt">
 
         <div class="zt-toolbar">
@@ -203,7 +194,7 @@
 
         <div class="zt-detail-panel" id="ztDetailPanel" style="display:none;">
             <div class="panel">
-                <h3 id="ztDetailHeader" style="color:#c0392b;">-</h3>
+                <h3 id="ztDetailHeader" style="color:#0f3460;">-</h3>
                 <div id="ztDetailLoading" class="loading-overlay" style="display:block;">
                     <div class="spinner"></div>
                     <div>正在获取主营构成与 AI 分析...</div>
@@ -227,9 +218,8 @@
     </div>
 </div>
 
-<script src="src/js/common.js"></script>
-<script src="src/js/finance.js"></script>
-<script src="src/js/zt.js"></script>
-<script src="src/js/macro.js"></script>
+<script src="js/common.js"></script>
+<script src="js/finance.js"></script>
+<script src="js/zt.js"></script>
 </body>
 </html>

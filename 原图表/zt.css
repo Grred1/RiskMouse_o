@@ -23,7 +23,7 @@
 }
 .zt-toolbar button {
     padding: 8px 24px;
-    background: #c0392b;
+    background: #0f3460;
     color: #fff;
     border: none;
     border-radius: 8px;
@@ -31,7 +31,7 @@
     cursor: pointer;
     font-weight: 600;
 }
-.zt-toolbar button:hover { background: #e74c3c; }
+.zt-toolbar button:hover { background: #1a5276; }
 .zt-toolbar button:disabled { background: #999; cursor: not-allowed; }
 .zt-toolbar .zt-summary {
     font-size: 14px;
@@ -48,6 +48,3 @@
     border: 1px solid #f5c6cb;
     display: none;
 }
-
-.row-multi { background: #fff5f5; }
-.row-multi:hover td { background: #ffe8e8 !important; }
