@@ -153,6 +153,7 @@ def load_prompts() -> dict:
         "zygc_analysis.txt": "ZYGC_PROMPT_TEMPLATE",
         "financial_health.txt": "FINANCIAL_HEALTH_TEMPLATE",
         "financial_growth.txt": "FINANCIAL_GROWTH_TEMPLATE",
+        "financial_combined.txt": "FINANCIAL_COMBINED_TEMPLATE",
         "zt_risk.txt": "ZT_RISK_PROMPT",
     }
     for fname, var_name in prompt_files.items():

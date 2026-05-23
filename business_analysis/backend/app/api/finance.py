@@ -30,6 +30,7 @@ PROMPTS = load_prompts()
 ZYGC_PROMPT_TEMPLATE = PROMPTS.get("ZYGC_PROMPT_TEMPLATE", "")
 FINANCIAL_HEALTH_TEMPLATE = PROMPTS.get("FINANCIAL_HEALTH_TEMPLATE", "")
 FINANCIAL_GROWTH_TEMPLATE = PROMPTS.get("FINANCIAL_GROWTH_TEMPLATE", "")
+FINANCIAL_COMBINED_TEMPLATE = PROMPTS.get("FINANCIAL_COMBINED_TEMPLATE", "")
 
 # 财务数据列定义
 _PROFIT_KEY_COLS = [
@@ -329,3 +330,71 @@ def analyze_financial(data: dict):
     growth_result = cached_llm_call(symbol, f"{cache_key}_growth", do_growth)
 
     return {"health": health_result, "growth": growth_result}
+
+
+@router.post("/analyze/financial-combined")
+def analyze_financial_combined(data: dict):
+    """AI 财务健康与增长整合分析（量化评分版）"""
+    symbol = data.get("symbol", "")
+    code = data.get("code", "")
+    name = data.get("name", "")
+    latest_abstract = data.get("latestAbstract", {})
+    latest_date = str(latest_abstract.get("报告期", ""))[:10] if latest_abstract.get("报告期") else ""
+
+    cache_key = f"_combined_{latest_date}" if latest_date else "_combined"
+
+    def do_combined():
+        prompt = FINANCIAL_COMBINED_TEMPLATE
+        profit_trend = data.get("profitTrend", [])
+        balance_latest = data.get("balanceLatest", {})
+        cash_latest = data.get("cashLatest", {})
+        rd_data = data.get("rdData", [])
+
+        vars_dict = {
+            "symbol": symbol,
+            "name": name,
+            "financial_data": json.dumps({
+                "abstract": latest_abstract,
+                "balance": balance_latest,
+                "cash": cash_latest,
+                "profit_trend": profit_trend[-5:] if len(profit_trend) > 5 else profit_trend,
+                "rd_data": rd_data[-5:] if len(rd_data) > 5 else rd_data,
+            }, ensure_ascii=False, indent=2),
+            "historical_data": json.dumps(profit_trend[-5:] if len(profit_trend) > 5 else profit_trend, ensure_ascii=False, indent=2),
+            "industry_data": "暂无行业对比数据",
+        }
+        return call_llm(prompt.format(**vars_dict), max_tokens=1000)
+
+    result_text = cached_llm_call(symbol, f"{cache_key}_combined", do_combined)
+
+    # 尝试解析 JSON
+    import re
+    scores = {"solvency": 0, "operating_capacity": 0, "profitability": 0, "growth_and_cashflow": 0}
+    overall_conclusion = ""
+    final_conclusion = ""
+
+    try:
+        # 提取 JSON 块
+        start = result_text.find("{")
+        end = result_text.rfind("}")
+        if start >= 0 and end > start:
+            json_str = result_text[start:end+1]
+            parsed = json.loads(json_str)
+            overall_conclusion = parsed.get("overall_conclusion", "")
+            final_conclusion = parsed.get("final_conclusion", "")
+            s = parsed.get("scores", {})
+            scores = {
+                "solvency": int(s.get("solvency", 0)),
+                "operating_capacity": int(s.get("operating_capacity", 0)),
+                "profitability": int(s.get("profitability", 0)),
+                "growth_and_cashflow": int(s.get("growth_and_cashflow", 0)),
+            }
+    except (json.JSONDecodeError, ValueError, KeyError):
+        final_conclusion = result_text
+
+    return {
+        "overall_conclusion": overall_conclusion,
+        "scores": scores,
+        "final_conclusion": final_conclusion,
+        "raw": result_text,
+    }

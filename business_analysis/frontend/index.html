@@ -153,22 +153,16 @@
 
         <!-- AI 分析 -->
         <div id="aiSection" class="panel ai-section" style="display:none;">
-            <div id="aiHealthSection">
-                <h3>🤖 AI 财务健康分析 <span class="badge ai-badge">BETA</span></h3>
-                <div class="loading" id="aiHealthLoading" style="display:none;">
-                    <div class="spinner"></div>
-                    <span>AI 分析中...</span>
-                </div>
-                <div id="aiHealthContent" class="ai-content"></div>
+            <div id="aiCombinedHeader" style="display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+                <h3 style="margin:0;">📊 财务健康增长分析 <span class="badge ai-badge">BETA</span></h3>
+                <div id="aiScoreRow" style="display:flex;gap:6px;flex:1;min-width:200px;"></div>
+                <div id="aiOverallBadge" style="font-size:12px;color:#666;margin-left:auto;white-space:nowrap;"></div>
             </div>
-            <div id="aiGrowthSection" style="margin-top:20px;">
-                <h3>🤖 AI 财务增长分析 <span class="badge ai-badge">BETA</span></h3>
-                <div class="loading" id="aiGrowthLoading" style="display:none;">
-                    <div class="spinner"></div>
-                    <span>AI 分析中...</span>
-                </div>
-                <div id="aiGrowthContent" class="ai-content"></div>
+            <div class="loading" id="aiCombinedLoading" style="display:none;">
+                <div class="spinner"></div>
+                <span>AI 分析中...</span>
             </div>
+            <div id="aiCombinedContent" class="ai-content"></div>
         </div>
     </div>
 
@@ -368,10 +362,13 @@
     <div class="drawer-body" id="drawerBody"></div>
 </div>
 
-<script src="src/js/common.js?v=3"></script>
-<script src="src/js/finance.js?v=3"></script>
-<script src="src/js/risk.js?v=3"></script>
-<script src="src/js/macro.js?v=3"></script>
+<script src="src/js/common.js?v=4"></script>
+<script src="src/js/finance.js?v=4"></script>
+<script src="src/js/risk.js?v=4"></script>
+<script src="src/js/macro.js?v=4"></script>
 <script src="src/js/watchlist.js"></script>
+  <link rel="stylesheet" href="src/styles/mouse-agent.css">
+  <script src="src/js/mouse-agent.js"></script>
+  <mouse-assistant></mouse-assistant>
 </body>
 </html>

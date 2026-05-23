@@ -1,0 +1,156 @@
+"""
+Coze Agent 调用封装
+提供统一的 Coze Stream API 调用接口，供所有 Agent 模块复用。
+
+环境变量配置（.env）：
+  COZE_API_URL=https://xks6nwtnyr.coze.site/stream_run
+  COZE_BEARER_TOKEN=eyJ...
+  COZE_SESSION_ID=8UYU6_W1noNrbFPnE4qeu
+  COZE_PROJECT_ID=7643022710771204136
+"""
+from __future__ import annotations
+
+import json
+import os
+import time
+
+import requests
+
+# ── 默认配置（从 .env 读取） ────────────────────────────────────
+COZE_API_URL = os.environ.get(
+    "COZE_API_URL",
+    "https://xks6nwtnyr.coze.site/stream_run",
+)
+COZE_BEARER_TOKEN = os.environ.get("COZE_BEARER_TOKEN", "")
+COZE_SESSION_ID = os.environ.get("COZE_SESSION_ID", "8UYU6_W1noNrbFPnE4qeu")
+COZE_PROJECT_ID = os.environ.get("COZE_PROJECT_ID", "7643022710771204136")
+
+
+def call_coze_agent(
+    query_text: str,
+    *,
+    api_url: str | None = None,
+    bearer_token: str | None = None,
+    session_id: str | None = None,
+    project_id: str | None = None,
+    timeout: tuple[int, int] = (10, 60),
+) -> str:
+    """
+    调用 Coze Agent（SSE 流式），返回完整回复文本。
+
+    参数:
+        query_text: 要查询/鉴定的文本
+        api_url: 覆盖默认 API URL
+        bearer_token: 覆盖默认 Token
+        session_id: 覆盖默认 Session ID
+        project_id: 覆盖默认 Project ID
+        timeout: (连接超时, 读取超时)
+
+    返回:
+        Agent 完整回复文本。失败时返回空字符串。
+
+    用法:
+        >>> reply = call_coze_agent("2026-05-19 欧盟议会通过钢铁关税翻倍")
+        >>> print(reply)
+    """
+    url = api_url or COZE_API_URL
+    token = bearer_token or COZE_BEARER_TOKEN
+    sid = session_id or COZE_SESSION_ID
+    pid = project_id or COZE_PROJECT_ID
+
+    if not token:
+        return ""
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "Accept": "text/event-stream",
+    }
+
+    payload = {
+        "content": {
+            "query": {
+                "prompt": [
+                    {
+                        "type": "text",
+                        "content": {"text": query_text},
+                    }
+                ]
+            }
+        },
+        "type": "query",
+        "session_id": sid,
+        "project_id": pid,
+    }
+
+    try:
+        response = requests.post(url, headers=headers, json=payload, stream=True, timeout=timeout)
+    except Exception:
+        return ""
+
+    if response.status_code != 200:
+        return ""
+
+    full_reply = ""
+    for line in response.iter_lines(decode_unicode=True):
+        if not line or not line.startswith("data:"):
+            continue
+        data_text = line[5:].strip()
+        if not data_text:
+            continue
+        try:
+            event = json.loads(data_text)
+            if event.get("type") == "answer":
+                answer = event.get("content", {}).get("answer", "")
+                if isinstance(answer, str):
+                    full_reply += answer
+        except json.JSONDecodeError:
+            pass
+
+    return full_reply
+
+
+def verify_news(news_text: str) -> dict:
+    """
+    调用真伪鉴别 Agent 鉴定一条金融消息。
+
+    返回:
+        {
+            "authentic": True/False,    # 消息是否可信
+            "confidence": "高/中/低",    # 置信度
+            "reason": "判断理由",
+        }
+    """
+    query = f"请鉴定以下金融消息的真伪：\n{news_text}\n\n请给出判断结果、置信度和理由。"
+    reply = call_coze_agent(query)
+
+    if not reply:
+        return {
+            "authentic": False,
+            "confidence": "低",
+            "reason": "Agent 调用失败，无法鉴定",
+        }
+
+    # 尝试解析为结构化 JSON
+    try:
+        # 查找可能的 JSON 块
+        start = reply.find("{")
+        end = reply.rfind("}")
+        if start >= 0 and end > start:
+            parsed = json.loads(reply[start : end + 1])
+            return {
+                "authentic": parsed.get("authentic", parsed.get("is_real", True)),
+                "confidence": parsed.get("confidence", "中"),
+                "reason": parsed.get("reason", parsed.get("explanation", reply[:100])),
+            }
+    except json.JSONDecodeError:
+        pass
+
+    # 回退：用关键字判断
+    reply_lower = reply.lower()
+    is_authentic = any(kw in reply_lower for kw in ["真实", "可信", "正确", "属实"])
+    return {
+        "authentic": is_authentic,
+        "confidence": "中",
+        "reason": reply[:120],
+    }

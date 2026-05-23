@@ -18,6 +18,8 @@ from .config import (
     _ensure_stock_names_cache,
 )
 from .llm import call_llm, cached_llm_call, get_llm_client
+from .coze_agent import call_coze_agent, verify_news
+from . import cache_rag
 
 __all__ = [
     "BACKEND_DIR",
@@ -37,4 +39,6 @@ __all__ = [
     "call_llm",
     "cached_llm_call",
     "get_llm_client",
+    "call_coze_agent",
+    "verify_news",
 ]

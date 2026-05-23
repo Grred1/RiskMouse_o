@@ -1,0 +1,318 @@
+/* ============================================================
+   小老鼠 AI 助手 - 独立样式
+   使用真实图片替换纯 CSS 绘制
+   ============================================================ */
+
+/* ── 容器 ────────────────────────────────────────────────── */
+.ma-wrapper {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 2147483647;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* ── 小老鼠主体 ────────────────────────────────────────────── */
+.ma-character {
+  position: relative;
+  width: 140px;
+  height: 160px;
+  cursor: pointer;
+  transition: transform 0.2s;
+  user-select: none;
+}
+.ma-character:hover {
+  transform: scale(1.05);
+}
+.ma-character:active {
+  transform: scale(0.95);
+}
+
+/* 使用图片作为宠物形象 */
+.ma-pet {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 130px;
+  height: 130px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center bottom;
+  z-index: 2;
+  transition: background-image 0.3s ease;
+}
+
+/* 四张状态图片（透明底 PNG） */
+.ma-character.idle .ma-pet {
+  background-image: url("../images/mouse-idle.png");
+}
+.ma-character.surfing .ma-pet {
+  background-image: url("../images/mouse-surfing.png");
+}
+.ma-character.thinking .ma-pet {
+  background-image: url("../images/mouse-thinking.png");
+}
+.ma-character.alert .ma-pet {
+  background-image: url("../images/mouse-alert.png");
+}
+
+/* ── 对话气泡屏幕（适配宠物风格） ─────────────────────────── */
+.ma-screen {
+  position: absolute;
+  top: -82px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 128px;
+  min-height: 72px;
+  background: #fff8f0;
+  border: 3px solid #c4a882;
+  border-radius: 16px 16px 16px 4px;
+  z-index: 5;
+  overflow: hidden;
+  box-shadow: 0 3px 12px rgba(180,140,100,0.2);
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+}
+
+/* 气泡尾巴（指向小宠物） */
+.ma-screen::after {
+  content: "";
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 10px solid #fff8f0;
+  filter: drop-shadow(0 2px 1px rgba(180,140,100,0.1));
+}
+
+.ma-screen-content {
+  font-size: 10px;
+  color: #6b5b4e;
+  line-height: 1.6;
+  width: 100%;
+  max-height: 62px;
+  overflow: hidden;
+  word-break: break-all;
+  font-family: "Courier New", monospace;
+  white-space: pre-wrap;
+}
+
+@keyframes ma-bounce-pet {
+  0%, 100% { transform: translateX(-50%) translateY(0) scale(1); }
+  50% { transform: translateX(-50%) translateY(-3px) scale(1.02); }
+}
+.ma-character.idle .ma-pet {
+  animation: ma-bounce-pet 3s ease-in-out infinite;
+}
+
+@keyframes ma-type-pet {
+  0%, 100% { transform: translateX(-50%) rotate(0deg); }
+  25% { transform: translateX(-50%) rotate(-3deg); }
+  75% { transform: translateX(-50%) rotate(3deg); }
+}
+.ma-character.surfing .ma-pet {
+  animation: ma-type-pet 0.6s ease-in-out infinite;
+}
+
+/* ── 冒泡提醒 ────────────────────────────────────────────── */
+.ma-bubble {
+  position: absolute;
+  top: -10px;
+  right: -8px;
+  min-width: 18px;
+  height: 18px;
+  background: #e74c3c;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  z-index: 10;
+  animation: ma-bounce 0.5s ease;
+  cursor: pointer;
+}
+@keyframes ma-bounce {
+  0% { transform: scale(0); }
+  50% { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
+
+/* ── 通知列表弹窗 ────────────────────────────────────────── */
+.ma-notif-panel {
+  position: absolute;
+  bottom: 170px;
+  right: 0;
+  width: 300px;
+  max-height: 300px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.15);
+  overflow: hidden;
+  z-index: 20;
+  display: none;
+}
+.ma-notif-panel.open { display: block; }
+.ma-notif-header {
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.ma-notif-clear {
+  font-size: 11px;
+  color: #999;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+.ma-notif-clear:hover { color: #c0392b; }
+.ma-notif-list {
+  overflow-y: auto;
+  max-height: 240px;
+}
+.ma-notif-item {
+  padding: 8px 14px;
+  border-bottom: 1px solid #f5f5f5;
+  font-size: 12px;
+}
+.ma-notif-item:last-child { border-bottom: none; }
+.ma-notif-item.info { border-left: 3px solid #3498db; }
+.ma-notif-item.warning { border-left: 3px solid #e67e22; }
+.ma-notif-item.danger { border-left: 3px solid #e74c3c; }
+.ma-notif-title {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 2px;
+}
+.ma-notif-content {
+  color: #666;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.ma-notif-time {
+  color: #bbb;
+  font-size: 10px;
+  margin-top: 2px;
+}
+
+/* ── 对话框 ──────────────────────────────────────────────── */
+.ma-chat-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.3);
+  z-index: 2147483646;
+  display: none;
+}
+.ma-chat-overlay.open { display: block; }
+.ma-chat-box {
+  position: fixed;
+  bottom: 200px;
+  right: 180px;
+  width: 320px;
+  height: 400px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.2);
+  z-index: 2147483647;
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+}
+.ma-chat-box.open { display: flex; }
+.ma-chat-header {
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #c4a882, #b8a088);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.ma-chat-close {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+  opacity: 0.7;
+}
+.ma-chat-close:hover { opacity: 1; }
+.ma-chat-msgs {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px;
+  background: #f8f9fa;
+}
+.ma-msg {
+  margin-bottom: 10px;
+  max-width: 85%;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.ma-msg.them {
+  background: #fff;
+  border: 1px solid #eee;
+  color: #333;
+  align-self: flex-start;
+  margin-right: auto;
+  border-bottom-left-radius: 4px;
+}
+.ma-msg.me {
+  background: #2952a3;
+  color: #fff;
+  margin-left: auto;
+  border-bottom-right-radius: 4px;
+}
+.ma-msg .ma-msg-label {
+  font-size: 10px;
+  color: #999;
+  margin-bottom: 2px;
+}
+.ma-msg.me .ma-msg-label { color: rgba(255,255,255,0.6); }
+.ma-chat-input-area {
+  display: flex;
+  padding: 8px 12px;
+  border-top: 1px solid #eee;
+  gap: 8px;
+  background: #fff;
+}
+.ma-chat-input {
+  flex: 1;
+  border: 1px solid #ddd;
+  border-radius: 20px;
+  padding: 8px 14px;
+  font-size: 13px;
+  outline: none;
+}
+.ma-chat-input:focus { border-color: #2952a3; }
+.ma-chat-send {
+  width: 36px;
+  height: 36px;
+  background: #2952a3;
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ma-chat-send:hover { background: #1a3a7a; }
+.ma-chat-send:disabled { background: #ccc; cursor: not-allowed; }

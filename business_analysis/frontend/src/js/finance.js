@@ -151,8 +151,6 @@ function onReportChange() {
 
     const categories = ['industry', 'product', 'region'];
     categories.forEach(cat => renderCategory(cat, date));
-
-    requestAIAnalysis(date);
 }
 
 function renderCategory(catKey, date) {
@@ -285,39 +283,6 @@ function switchTab(catKey) {
         setTimeout(() => {
             if (chartInstances[catKey]) chartInstances[catKey].resize();
         }, 100);
-    }
-}
-
-async function requestAIAnalysis(date) {
-    const section = document.getElementById('aiSection');
-    const loading = document.getElementById('aiHealthLoading');
-    const content = document.getElementById('aiHealthContent');
-    if (!section || !loading || !content) return;
-    section.style.display = 'block';
-    loading.style.display = 'block';
-    content.textContent = '';
-
-    const latestData = {};
-    for (const [catName, catKey] of Object.entries(CATEGORY_MAP)) {
-        latestData[catName] = allData.records.filter(r => r.分类类型 === catName && r.报告日期 === date);
-    }
-
-    try {
-        const resp = await fetch('/api/analyze/zygc', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ symbol: currentSymbol, latestData }),
-        });
-        const result = await resp.json();
-        loading.style.display = 'none';
-        if (result.analysis) {
-            content.textContent = result.analysis;
-        } else {
-            content.textContent = result.zygc_analysis || '暂无解读';
-        }
-    } catch (e) {
-        loading.style.display = 'none';
-        content.textContent = 'AI 解读请求失败: ' + e.message;
     }
 }
 
@@ -619,18 +584,12 @@ function renderProfitabilityTrend(abstract) {
 }
 
 async function requestFinancialAI(latest, profit, balance, cash) {
-    const healthSection = document.getElementById('aiHealthSection');
-    const growthSection = document.getElementById('aiGrowthSection');
-    const healthLoading = document.getElementById('aiHealthLoading');
-    const growthLoading = document.getElementById('aiGrowthLoading');
-    const healthContent = document.getElementById('aiHealthContent');
-    const growthContent = document.getElementById('aiGrowthContent');
-    healthSection.style.display = 'block';
-    growthSection.style.display = 'block';
-    healthLoading.style.display = 'block';
-    growthLoading.style.display = 'block';
-    healthContent.textContent = '';
-    growthContent.textContent = '';
+    const section = document.getElementById('aiSection');
+    const loading = document.getElementById('aiCombinedLoading');
+    const content = document.getElementById('aiCombinedContent');
+    section.style.display = 'block';
+    loading.style.display = 'block';
+    content.innerHTML = '';
 
     const code = financialData.code || '';
     const name = financialData.name || '';
@@ -654,20 +613,68 @@ async function requestFinancialAI(latest, profit, balance, cash) {
     };
 
     try {
-        const resp = await fetch('/api/analyze/financial', {
+        const resp = await fetch('/api/analyze/financial-combined', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
         });
         const result = await resp.json();
-        healthLoading.style.display = 'none';
-        growthLoading.style.display = 'none';
-        healthContent.textContent = result.health || '暂无解读';
-        growthContent.textContent = result.growth || '暂无解读';
+        loading.style.display = 'none';
+
+        const scores = result.scores || {};
+        const scoreConfig = [
+            { key: 'solvency', label: '偿债', color: '#3498db' },
+            { key: 'operating_capacity', label: '营运', color: '#e67e22' },
+            { key: 'profitability', label: '盈利', color: '#27ae60' },
+            { key: 'growth_and_cashflow', label: '成长', color: '#9b59b6' },
+        ];
+
+        // 评分行（标题后面）
+        const scoreRow = document.getElementById('aiScoreRow');
+        if (scoreRow) {
+            scoreRow.innerHTML = scoreConfig.map(c => {
+                const s = scores[c.key] || 0;
+                const stars = '★'.repeat(s) + '☆'.repeat(5 - s);
+                return `<span style="display:inline-flex;align-items:center;gap:3px;font-size:12px;color:${c.color};font-weight:600;background:#f5f6fa;padding:3px 10px;border-radius:12px;white-space:nowrap;">
+                    ${c.label} ${s}${stars}
+                </span>`;
+            }).join('');
+        }
+
+        // 总体结论（右侧）
+        const badge = document.getElementById('aiOverallBadge');
+        if (badge && result.overall_conclusion) {
+            badge.textContent = '📌 ' + result.overall_conclusion;
+        }
+
+        let html = '';
+
+        // 详细分析 - 按关键指标分段格式化
+        if (result.final_conclusion) {
+            const text = result.final_conclusion;
+            // 用 \n 分段
+            const paragraphs = text.split('\n').filter(p => p.trim());
+            html += `<div style="background:#f8f9fa;border-radius:10px;padding:14px;border:1px solid #e8ecf1;">
+                <div style="font-size:13px;line-height:1.9;color:#444;white-space:pre-wrap;">`;
+            paragraphs.forEach((p, i) => {
+                const trimmed = p.trim();
+                // 识别关键指标行（含数字/百分比/-/趋势词）
+                const hasData = /[\d.]+%|[\d.]+亿|-?\d+\.\d+/.test(trimmed);
+                const isKeyPoint = /风险|健康|稳定|恶化|改善|优秀|不足|关注/.test(trimmed);
+                if (hasData) {
+                    html += `<span style="display:block;padding:2px 0;">${trimmed}</span>`;
+                } else if (isKeyPoint) {
+                    html += `<span style="display:block;padding:3px 0;font-weight:600;color:#333;">${trimmed}</span>`;
+                } else {
+                    html += `<span style="display:block;padding:1px 0;">${trimmed}</span>`;
+                }
+            });
+            html += `</div></div>`;
+        }
+
+        content.innerHTML = html || '<div style="color:#999;text-align:center;padding:20px;">暂无分析结果</div>';
     } catch (e) {
-        healthLoading.style.display = 'none';
-        growthLoading.style.display = 'none';
-        healthContent.textContent = 'AI 健康性分析请求失败: ' + e.message;
-        growthContent.textContent = 'AI 增长分析请求失败: ' + e.message;
+        loading.style.display = 'none';
+        content.innerHTML = '<div style="color:#c0392b;text-align:center;padding:20px;">AI 分析请求失败: ' + e.message + '</div>';
     }
 }
