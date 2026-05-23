@@ -1,5 +1,6 @@
 [project]
 requires = ["python-3.12"]
+project_type = "web"
 
 [preview]
 preview_enable = "enabled"
