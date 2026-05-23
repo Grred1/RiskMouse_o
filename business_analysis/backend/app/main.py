@@ -9,8 +9,16 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api import finance_router, sentiment_router
+# 加载 .env（本地开发用）
+try:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", ".env"), override=True, encoding="utf-8")
+except ImportError:
+    pass
+
+from .api import finance_router, sentiment_router, watchlist_router
 from .core import _ensure_stock_names_cache
+from . import db as watchlist_db
 
 # 项目根目录 (backend/app/main.py -> backend/ -> 项目根目录)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -36,6 +44,7 @@ app.add_middleware(
 # 注册路由
 app.include_router(finance_router)
 app.include_router(sentiment_router)
+app.include_router(watchlist_router)
 
 # 静态文件目录
 frontend_src = os.path.join(FRONTEND_DIR, "src")
@@ -49,6 +58,7 @@ if os.path.exists(frontend_src):
 def startup():
     """应用启动时的初始化"""
     _ensure_stock_names_cache()
+    watchlist_db.init_db()
 
 
 @app.get("/")

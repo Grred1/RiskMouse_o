@@ -38,12 +38,30 @@ def _get_provider() -> str:
 _deepseek_client: Any = None
 
 
+def _read_key_from_dotenv_file() -> str:
+    """直接解析 .env 文件，不依赖 python-dotenv 库"""
+    import pathlib
+    env_file = pathlib.Path(__file__).parent.parent.parent.parent / ".env"
+    if not env_file.exists():
+        return ""
+    try:
+        with open(env_file, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith(f"{DEEPSEEK_API_KEY_ENV}="):
+                    value = line[len(DEEPSEEK_API_KEY_ENV) + 1:].strip().strip('"').strip("'")
+                    return value
+    except Exception:
+        pass
+    return ""
+
+
 def _get_deepseek_client():
     global _deepseek_client
     if _deepseek_client is None:
         from openai import OpenAI
 
-        api_key = os.environ.get(DEEPSEEK_API_KEY_ENV, "")
+        api_key = os.environ.get(DEEPSEEK_API_KEY_ENV, "") or _read_key_from_dotenv_file()
         if not api_key:
             raise ValueError(
                 f"DeepSeek API Key 未设置。请在环境变量 {DEEPSEEK_API_KEY_ENV} 中配置。"
@@ -131,6 +149,9 @@ def call_llm(
         return f"AI 调用失败: {str(e)}"
 
 
+_ERROR_PREFIXES = ("AI 调用失败", "DeepSeek API Key", "DEEPSEEK_API_KEY", "未配置")
+
+
 def cached_llm_call(
     symbol: str,
     cache_key: str,
@@ -140,12 +161,18 @@ def cached_llm_call(
 
     if os.path.exists(cache_file):
         try:
-            with open(cache_file, "r", encoding="utf-8") as f:
-                return json.load(f).get("result", "")
+            cached = json.load(open(cache_file, "r", encoding="utf-8")).get("result", "")
+            # 跳过缓存的错误结果，重新调用
+            if cached and not any(cached.startswith(p) for p in _ERROR_PREFIXES):
+                return cached
         except Exception:
             pass
 
     result = prompt_fn()
+
+    # 只缓存成功的结果
+    if result and any(result.startswith(p) for p in _ERROR_PREFIXES):
+        return result
 
     try:
         with open(cache_file, "w", encoding="utf-8") as f:

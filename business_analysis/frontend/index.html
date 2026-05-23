@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="src/styles/common.css">
     <link rel="stylesheet" href="src/styles/finance.css">
     <link rel="stylesheet" href="src/styles/zt.css">
+    <link rel="stylesheet" href="src/styles/watchlist.css">
 </head>
 <body>
 
@@ -18,6 +19,7 @@
         <div class="nav-tab active" data-feature="macro" onclick="switchFeature('macro')">📅 宏观日历</div>
         <div class="nav-tab" data-feature="finance" onclick="switchFeature('finance')">📊 财报风险</div>
         <div class="nav-tab" data-feature="risk" onclick="switchFeature('risk')">📰 风险挖掘</div>
+        <div class="nav-tab" data-feature="watchlist" onclick="switchFeature('watchlist')">🛡️ 自选风控</div>
     </div>
 </div>
 
@@ -240,9 +242,140 @@
     </div>
 </div>
 
+    <!-- ===== 自选风控 ===== -->
+    <div class="feature-section" id="feature-watchlist">
+        <div class="watchlist-layout">
+
+            <!-- 持久化自选股 -->
+            <div class="panel">
+                <h3>⭐ 我的自选股 <span style="font-size:12px;font-weight:400;color:#90a4ae;">点击卡片查看风险详情</span>
+                    <button class="assess-btn" onclick="assessAll()">一键测评</button>
+                </h3>
+                <div class="assess-status" id="assessStatus"></div>
+                <div class="saved-grid" id="savedGrid">
+                    <div class="saved-empty">暂无自选股，请在下方添加</div>
+                </div>
+            </div>
+
+            <!-- 添加区域 -->
+            <div class="watchlist-input-area">
+                <!-- 截图上传 -->
+                <div class="panel">
+                    <h3>📷 上传自选股截图</h3>
+                    <div class="upload-zone" id="uploadZone">
+                        <div class="upload-icon">📁</div>
+                        <div class="upload-hint">点击或拖拽图片到此处<br><strong>AI 自动识别股票代码</strong></div>
+                        <input type="file" id="imageInput" accept="image/*" style="display:none;">
+                        <img id="uploadPreview" class="upload-preview" alt="预览">
+                    </div>
+                    <div class="parsing-hint" id="parsingHint"></div>
+                    <button id="ocrAddBtn" class="ocr-add-btn" style="display:none;">添加全部到自选</button>
+                </div>
+
+                <!-- 手动输入 -->
+                <div class="panel">
+                    <h3>✏️ 手动添加股票</h3>
+                    <div class="manual-input-panel">
+                        <div class="manual-input-row">
+                            <input type="text" id="manualInput" placeholder="输入6位股票代码，支持逗号分隔批量输入"
+                                onkeydown="handleManualInput(event)">
+                            <button onclick="handleManualInput(null)">添加</button>
+                        </div>
+                        <div>
+                            <div style="font-size:13px;color:#78909c;margin-bottom:6px;">待添加列表：</div>
+                            <div class="stock-tags" id="stockTags">
+                                <span class="stock-tags-empty">暂无待添加股票</span>
+                            </div>
+                        </div>
+                        <span class="watchlist-error" id="watchlistError"></span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- 风险评级列表 -->
+        <div class="panel" id="ratingListSection" style="display:none;">
+            <h3>📊 风险评级排行</h3>
+            <div id="ratingListContainer"></div>
+        </div>
+
+        <!-- 风险便利贴 -->
+        <div class="panel" id="stickyNotesSection" style="display:none;">
+            <h3>📝 风险便利贴</h3>
+            <div class="sticky-notes-grid" id="stickyNotesContainer"></div>
+        </div>
+
+        <!-- 风险日记 -->
+        <div class="panel" id="riskDiarySection">
+            <h3>📔 风险日记</h3>
+            <div class="diary-filter-bar">
+                <label>按股票筛选：</label>
+                <select id="diaryFilterSelect" onchange="renderDiaryList(this.value)">
+                    <option value="">全部</option>
+                </select>
+            </div>
+            <div id="diaryListContainer"></div>
+            <div class="diary-form-toggle">
+                <button onclick="toggleDiaryForm()">+ 新增日记</button>
+            </div>
+            <div class="diary-form" id="diaryForm" style="display:none;">
+                <input type="hidden" id="dStockSymbol">
+                <div class="diary-form-row">
+                    <label>股票</label>
+                    <input id="dStockName" placeholder="股票名称" readonly>
+                    <span id="dStockCode" style="font-size:12px;color:#90a4ae;margin-left:6px;"></span>
+                </div>
+                <div class="diary-form-row">
+                    <label>日期</label>
+                    <input type="date" id="dDate">
+                </div>
+                <div class="diary-form-row">
+                    <label>风险等级</label>
+                    <select id="dRiskLevel">
+                        <option value="低">低风险</option>
+                        <option value="中">中风险</option>
+                        <option value="高">高风险</option>
+                    </select>
+                </div>
+                <div class="diary-form-row">
+                    <label>综合评分</label>
+                    <input type="number" id="dRiskScore" min="1" max="5" placeholder="1-5">
+                </div>
+                <div class="diary-form-row">
+                    <label>系统建议</label>
+                    <textarea id="dSystemSuggestion" rows="2" placeholder="AI 解读或系统建议"></textarea>
+                </div>
+                <div class="diary-form-row">
+                    <label>我的备注</label>
+                    <textarea id="dUserNote" rows="2" placeholder="记录你的想法..."></textarea>
+                </div>
+                <div class="diary-form-row">
+                    <label>标签</label>
+                    <input id="dTag" placeholder="如：持仓观察、重点关注">
+                </div>
+                <button class="diary-submit-btn" onclick="handleDiarySubmit()">保存日记</button>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<!-- 详情抽屉（固定定位，独立于容器外） -->
+<div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
+<div class="detail-drawer" id="detailDrawer">
+    <div class="drawer-header">
+        <span>股票风险详情</span>
+        <button class="drawer-close-btn" onclick="closeDrawer()">✕</button>
+    </div>
+    <div class="drawer-body" id="drawerBody"></div>
+</div>
+
 <script src="src/js/common.js"></script>
 <script src="src/js/finance.js"></script>
 <script src="src/js/risk.js"></script>
 <script src="src/js/macro.js"></script>
+<script src="src/js/watchlist.js"></script>
 </body>
 </html>

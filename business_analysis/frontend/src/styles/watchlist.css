@@ -1,0 +1,798 @@
+.watchlist-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+/* 输入区域 */
+.watchlist-input-area {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+@media (max-width: 768px) {
+    .watchlist-input-area {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* 上传区 */
+.upload-zone {
+    border: 2px dashed #b0bec5;
+    border-radius: 12px;
+    padding: 32px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    background: #fafbfc;
+    min-height: 180px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.upload-zone:hover,
+.upload-zone.drag-over {
+    border-color: #0f3460;
+    background: #f0f4ff;
+}
+
+.upload-zone .upload-icon {
+    font-size: 36px;
+    color: #90a4ae;
+}
+
+.upload-zone .upload-hint {
+    font-size: 14px;
+    color: #78909c;
+}
+
+.upload-zone .upload-hint strong {
+    color: #0f3460;
+}
+
+.upload-preview {
+    margin-top: 12px;
+    width: 100%;
+    max-height: 200px;
+    object-fit: contain;
+    border-radius: 8px;
+    display: none;
+}
+
+.upload-result-tags {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+}
+
+.parsing-hint {
+    font-size: 13px;
+    color: #546e7a;
+    margin-top: 6px;
+}
+
+.ocr-add-btn {
+    margin-top: 10px;
+    padding: 9px 20px;
+    background: #0f3460;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    font-weight: 500;
+    width: 100%;
+    transition: background 0.2s;
+}
+
+.ocr-add-btn:hover:not(:disabled) {
+    background: #1a4a8a;
+}
+
+.ocr-add-btn:disabled {
+    background: #b0bec5;
+    cursor: not-allowed;
+}
+
+/* 手动输入区 */
+.manual-input-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.manual-input-panel h4 {
+    font-size: 15px;
+    color: #37474f;
+    margin: 0;
+}
+
+.manual-input-row {
+    display: flex;
+    gap: 8px;
+}
+
+.manual-input-row input {
+    flex: 1;
+    padding: 9px 12px;
+    border: 1px solid #cfd8dc;
+    border-radius: 8px;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.manual-input-row input:focus {
+    border-color: #0f3460;
+}
+
+.manual-input-row button {
+    padding: 9px 16px;
+    background: #0f3460;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    white-space: nowrap;
+}
+
+.manual-input-row button:hover {
+    background: #1a4a8a;
+}
+
+/* 股票标签 */
+.stock-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: 36px;
+}
+
+.stock-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 10px;
+    background: #e8eaf6;
+    border-radius: 20px;
+    font-size: 13px;
+    color: #3949ab;
+    font-weight: 500;
+}
+
+.stock-tag .tag-remove {
+    cursor: pointer;
+    color: #9fa8da;
+    font-size: 15px;
+    line-height: 1;
+    margin-left: 2px;
+}
+
+.stock-tag .tag-remove:hover {
+    color: #e53935;
+}
+
+.stock-tags-empty {
+    font-size: 13px;
+    color: #b0bec5;
+    padding: 6px 0;
+}
+
+/* 分析按钮 */
+.analyze-btn-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.analyze-btn {
+    padding: 11px 32px;
+    background: #0f3460;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+
+.analyze-btn:hover:not(:disabled) {
+    background: #1a4a8a;
+}
+
+.analyze-btn:disabled {
+    background: #b0bec5;
+    cursor: not-allowed;
+}
+
+.watchlist-error {
+    color: #e53935;
+    font-size: 14px;
+}
+
+/* 结果区 */
+.watchlist-results {
+    display: none;
+}
+
+.watchlist-results.visible {
+    display: block;
+}
+
+.results-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+    margin-top: 16px;
+}
+
+/* 单股风险卡片 */
+.risk-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 18px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.risk-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.risk-card-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: #263238;
+}
+
+.risk-card-code {
+    font-size: 12px;
+    color: #90a4ae;
+    margin-top: 2px;
+}
+
+/* 星级行 */
+.stars-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.stars-item {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.stars-label {
+    font-size: 11px;
+    color: #78909c;
+}
+
+.stars-row {
+    display: flex;
+    gap: 2px;
+    font-size: 15px;
+    line-height: 1;
+}
+
+.star-filled {
+    color: #f5a623;
+}
+
+.star-empty {
+    color: #e0e0e0;
+}
+
+.stars-risk .star-filled {
+    color: #e53935;
+}
+
+/* 简短描述 */
+.brief-text {
+    font-size: 13px;
+    color: #546e7a;
+    border-top: 1px solid #f0f0f0;
+    padding-top: 10px;
+    line-height: 1.5;
+}
+
+/* 加载中卡片 */
+.risk-card-loading {
+    background: #fff;
+    border-radius: 12px;
+    padding: 18px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 140px;
+    color: #90a4ae;
+    font-size: 14px;
+    gap: 8px;
+}
+
+/* ── 持久化自选股卡片 ─────────────────────────────────── */
+.saved-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px;
+    margin-top: 4px;
+}
+
+.saved-empty {
+    color: #b0bec5;
+    font-size: 14px;
+    padding: 24px 0;
+    text-align: center;
+    grid-column: 1 / -1;
+}
+
+.saved-card {
+    background: #f8f9fa;
+    border: 1px solid #e8ecf0;
+    border-radius: 10px;
+    padding: 14px;
+    cursor: pointer;
+    transition: box-shadow 0.2s, border-color 0.2s;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.saved-card:hover {
+    box-shadow: 0 4px 14px rgba(15,52,96,0.12);
+    border-color: #90a4ae;
+}
+
+.saved-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.saved-card-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #263238;
+}
+
+.saved-card-code {
+    font-size: 11px;
+    color: #90a4ae;
+    margin-top: 2px;
+}
+
+.saved-card-remove {
+    background: none;
+    border: none;
+    color: #cfd8dc;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 0 2px;
+    line-height: 1;
+    transition: color 0.2s;
+}
+
+.saved-card-remove:hover {
+    color: #e53935;
+}
+
+.saved-card-hint {
+    font-size: 11px;
+    color: #90a4ae;
+}
+
+/* ── tag-action (+ 按钮) ──────────────────────────────── */
+.stock-tag .tag-action {
+    cursor: pointer;
+    color: #7986cb;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1;
+    margin-left: 2px;
+    transition: color 0.15s;
+}
+
+.stock-tag .tag-action:hover {
+    color: #3949ab;
+}
+
+/* ── 详情抽屉 ─────────────────────────────────────────── */
+.drawer-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+    z-index: 200;
+    opacity: 0;
+    transition: opacity 0.25s;
+}
+
+.drawer-overlay.visible {
+    display: block;
+    opacity: 1;
+}
+
+.detail-drawer {
+    position: fixed;
+    top: 0;
+    right: -520px;
+    width: 500px;
+    height: 100vh;
+    background: #fff;
+    box-shadow: -4px 0 24px rgba(0,0,0,0.12);
+    z-index: 300;
+    display: flex;
+    flex-direction: column;
+    transition: right 0.3s cubic-bezier(0.4,0,0.2,1);
+    overflow: hidden;
+}
+
+.detail-drawer.open {
+    right: 0;
+}
+
+.drawer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 18px 20px;
+    border-bottom: 1px solid #eceff1;
+    font-size: 15px;
+    font-weight: 600;
+    color: #263238;
+    flex-shrink: 0;
+}
+
+.drawer-close-btn {
+    background: none;
+    border: none;
+    font-size: 18px;
+    color: #90a4ae;
+    cursor: pointer;
+    padding: 0 4px;
+    transition: color 0.2s;
+}
+
+.drawer-close-btn:hover {
+    color: #263238;
+}
+
+.drawer-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 20px 32px;
+}
+
+/* ── 抽屉内容区块 ─────────────────────────────────────── */
+.drawer-stock-title {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.drawer-name {
+    font-size: 20px;
+    font-weight: 700;
+    color: #0f3460;
+}
+
+.drawer-code {
+    font-size: 14px;
+    color: #90a4ae;
+}
+
+.drawer-section {
+    margin-bottom: 20px;
+}
+
+.drawer-section-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #90a4ae;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.basis-toggle {
+    cursor: pointer;
+    color: #7986cb;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.score-basis {
+    border: 1px solid #eceff1;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.basis-row {
+    display: grid;
+    grid-template-columns: 80px 90px 1fr;
+    gap: 8px;
+    align-items: start;
+    padding: 10px 12px;
+    border-bottom: 1px solid #f5f5f5;
+    font-size: 13px;
+}
+
+.basis-row:last-child {
+    border-bottom: none;
+}
+
+.basis-label {
+    font-weight: 600;
+    color: #455a64;
+    white-space: nowrap;
+}
+
+.basis-stars {
+    display: flex;
+    gap: 1px;
+    font-size: 13px;
+}
+
+.basis-text {
+    color: #607d8b;
+    line-height: 1.5;
+}
+
+.drawer-brief {
+    font-size: 14px;
+    color: #37474f;
+    line-height: 1.7;
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 12px 14px;
+    border-left: 3px solid #0f3460;
+}
+
+.news-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.news-link-item {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    padding: 7px 10px;
+    border-radius: 6px;
+    text-decoration: none;
+    transition: background 0.15s;
+    color: inherit;
+}
+
+.news-link-item:hover {
+    background: #f0f4ff;
+}
+
+.news-date {
+    font-size: 11px;
+    color: #b0bec5;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.news-title {
+    font-size: 13px;
+    color: #37474f;
+    line-height: 1.4;
+}
+
+.news-empty {
+    font-size: 13px;
+    color: #b0bec5;
+    padding: 8px 0;
+    text-align: center;
+}
+
+.wordcloud-img {
+    width: 100%;
+    max-width: 440px;
+    border-radius: 8px;
+    display: block;
+    margin: 0 auto;
+}
+
+.drawer-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 60px 0;
+    color: #90a4ae;
+    font-size: 14px;
+    text-align: center;
+}
+
+.spinner {
+    width: 28px;
+    height: 28px;
+    border: 3px solid #e0e0e0;
+    border-top-color: #0f3460;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.drawer-error {
+    color: #e53935;
+    font-size: 14px;
+    padding: 40px 0;
+    text-align: center;
+}
+
+/* ── 一键测评 ─────────────────────────────────────────────── */
+.assess-btn {
+    float: right;
+    padding: 4px 14px;
+    background: #1976d2;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+}
+.assess-btn:disabled { opacity: .5; cursor: not-allowed; }
+.assess-status { font-size: 12px; color: #90a4ae; margin-top: 6px; }
+
+/* ── 风险评级列表 ─────────────────────────────────────────── */
+.rating-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.rating-table th { text-align: left; padding: 6px 8px; color: #78909c; border-bottom: 1px solid #eee; }
+.rating-table td { padding: 6px 8px; border-bottom: 1px solid #f5f5f5; cursor: pointer; }
+.rating-table tr:hover td { background: #f7f8fa; }
+.rating-rank { width: 32px; color: #90a4ae; text-align: center; }
+
+/* ── 风险便利贴 ────────────────────────────────────────────── */
+.sticky-notes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+}
+.sticky-note {
+    background: linear-gradient(135deg, #fffde7, #fff9c4);
+    border-radius: 10px;
+    padding: 14px 16px;
+    box-shadow: 2px 3px 8px rgba(0,0,0,.08);
+}
+.sticky-note-name { font-weight: 600; font-size: 15px; color: #333; }
+.sticky-note-code { font-size: 11px; color: #90a4ae; margin-bottom: 8px; }
+.sticky-note-brief { font-size: 13px; color: #555; line-height: 1.6; min-height: 40px; }
+.sticky-note-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+}
+.sticky-note-btn {
+    padding: 4px 10px;
+    background: #ff8a65;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+/* ── 风险日记 ─────────────────────────────────────────────── */
+.diary-filter-bar { margin-bottom: 12px; font-size: 13px; }
+.diary-filter-bar select {
+    margin-left: 8px;
+    padding: 4px 8px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+}
+.diary-card {
+    background: #fff;
+    border: 1px solid #e8ecf1;
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+}
+.diary-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+.diary-card-meta { display: flex; align-items: center; gap: 8px; }
+.diary-card-stock { font-weight: 600; font-size: 14px; }
+.diary-card-date { font-size: 12px; color: #90a4ae; }
+.diary-risk-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+}
+.diary-risk-低 { background: #e8f5e9; color: #2e7d32; }
+.diary-risk-中 { background: #fff3e0; color: #e65100; }
+.diary-risk-高 { background: #ffebee; color: #c62828; }
+.diary-card-body { font-size: 13px; color: #555; line-height: 1.6; }
+.diary-card-suggestion { color: #78909c; font-size: 12px; margin-top: 4px; }
+.diary-card-note { margin-top: 6px; }
+.diary-card-tag { font-size: 11px; color: #90a4ae; margin-top: 4px; }
+.diary-delete-btn {
+    background: none;
+    border: none;
+    color: #bbb;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 0 4px;
+}
+.diary-delete-btn:hover { color: #e53935; }
+.diary-empty { text-align: center; color: #bbb; padding: 20px; font-size: 13px; }
+.diary-form-toggle { margin: 12px 0; }
+.diary-form-toggle button {
+    padding: 6px 16px;
+    background: #e8ecf1;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    color: #555;
+}
+.diary-form {
+    background: #f7f8fa;
+    border-radius: 10px;
+    padding: 16px;
+    margin-top: 8px;
+}
+.diary-form-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 10px;
+    font-size: 13px;
+}
+.diary-form-row label {
+    width: 72px;
+    flex-shrink: 0;
+    padding-top: 4px;
+    color: #555;
+}
+.diary-form-row input,
+.diary-form-row select,
+.diary-form-row textarea {
+    flex: 1;
+    padding: 6px 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: inherit;
+}
+.diary-submit-btn {
+    padding: 7px 24px;
+    background: #1976d2;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+}
