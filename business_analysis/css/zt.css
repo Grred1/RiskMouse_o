@@ -1,0 +1,50 @@
+.zt-toolbar {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+    background: #fff;
+    padding: 12px 16px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    margin-bottom: 16px;
+}
+.zt-toolbar label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #555;
+}
+.zt-toolbar input[type="date"] {
+    padding: 8px 12px;
+    border: 1px solid #d0d7e0;
+    border-radius: 6px;
+    font-size: 14px;
+    outline: none;
+}
+.zt-toolbar button {
+    padding: 8px 24px;
+    background: #0f3460;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    font-weight: 600;
+}
+.zt-toolbar button:hover { background: #1a5276; }
+.zt-toolbar button:disabled { background: #999; cursor: not-allowed; }
+.zt-toolbar .zt-summary {
+    font-size: 14px;
+    color: #555;
+    font-weight: 500;
+}
+
+.zt-error {
+    background: #fff0f0;
+    color: #c0392b;
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    border: 1px solid #f5c6cb;
+    display: none;
+}

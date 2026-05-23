@@ -1,0 +1,31 @@
+你是一位专业的证券分析师。请根据以下搜索到的关于股票 {name}({code}) 涨停的相关文章内容，提取出市场上涨的核心叙事逻辑。
+
+搜索结果内容：
+{search_results}
+
+请按以下格式输出（JSON格式）：
+
+```json
+{
+  "narratives": [
+    {
+      "name": "叙事名称（简短，如'国资入主'、'摘帽'、'转型半导体'）",
+      "summary": "叙事详细描述（50字以内）",
+      "confidence": "高/中/低",
+      "keywords": ["关键词1", "关键词2"],
+      "is_official_source": true/false,
+      "official_source_detail": "如果来源于官方公告，写明具体公告内容",
+      "sustainability_preliminary": "强/中/弱",
+      "sustainability_reason": "初步判断理由"
+    }
+  ],
+  "primary_narrative": "最主要的叙事名称",
+  "is_multi_narrative": true/false
+}
+```
+
+注意：
+1. 同一股票可能有多个叙事（如"摘帽+医药"），请拆分列出
+2. 优先识别有官方公告/公司公告支撑的叙事
+3. confidence 表示该叙事在搜索结果中出现的频率和可信度
+4. sustainability_preliminary 为初步判断，后续会进一步验证
