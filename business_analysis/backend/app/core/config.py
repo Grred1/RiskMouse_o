@@ -13,8 +13,10 @@ import pandas as pd
 
 
 # 项目根目录（business_analysis/）
-BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PROJECT_ROOT = os.path.dirname(BACKEND_DIR)
+CORE_DIR = os.path.dirname(os.path.abspath(__file__))
+APP_DIR = os.path.dirname(CORE_DIR)          # backend/app/
+BACKEND_DIR = os.path.dirname(APP_DIR)       # backend/
+PROJECT_ROOT = os.path.dirname(BACKEND_DIR)  # business_analysis/
 
 # 缓存目录（统一放在项目根目录下）
 CACHE_DIR = os.path.join(PROJECT_ROOT, "cache")
