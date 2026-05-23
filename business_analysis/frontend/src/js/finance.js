@@ -40,6 +40,8 @@ async function search() {
     document.getElementById('financialContent').style.display = 'none';
     document.getElementById('finSectionHeader').style.display = 'none';
     document.getElementById('stockInfo').style.display = 'none';
+    document.getElementById('kpiGrid').style.display = 'none';
+    document.getElementById('kpiGrid').innerHTML = '';
     document.getElementById('reportSelector').style.display = 'none';
     document.getElementById('tabs').style.display = 'none';
     document.getElementById('aiSection').style.display = 'none';
@@ -72,6 +74,14 @@ async function refreshData() {
     document.getElementById('loadingOverlay').style.display = 'block';
     document.getElementById('loadingText').textContent = '正在更新主营构成数据...';
     document.getElementById('mainContent').style.display = 'none';
+    document.getElementById('financialContent').style.display = 'none';
+    document.getElementById('finSectionHeader').style.display = 'none';
+    document.getElementById('stockInfo').style.display = 'none';
+    document.getElementById('kpiGrid').style.display = 'none';
+    document.getElementById('kpiGrid').innerHTML = '';
+    document.getElementById('reportSelector').style.display = 'none';
+    document.getElementById('tabs').style.display = 'none';
+    document.getElementById('aiSection').style.display = 'none';
 
     try {
         const resp = await fetch(`/api/zygc?symbol=${encodeURIComponent(input)}&refresh=true`);
@@ -280,8 +290,9 @@ function switchTab(catKey) {
 
 async function requestAIAnalysis(date) {
     const section = document.getElementById('aiSection');
-    const loading = document.getElementById('aiLoading');
-    const content = document.getElementById('aiContent');
+    const loading = document.getElementById('aiHealthLoading');
+    const content = document.getElementById('aiHealthContent');
+    if (!section || !loading || !content) return;
     section.style.display = 'block';
     loading.style.display = 'block';
     content.textContent = '';
@@ -299,7 +310,11 @@ async function requestAIAnalysis(date) {
         });
         const result = await resp.json();
         loading.style.display = 'none';
-        content.textContent = result.analysis || result.zygc_analysis || '暂无解读';
+        if (result.analysis) {
+            content.textContent = result.analysis;
+        } else {
+            content.textContent = result.zygc_analysis || '暂无解读';
+        }
     } catch (e) {
         loading.style.display = 'none';
         content.textContent = 'AI 解读请求失败: ' + e.message;
@@ -313,7 +328,8 @@ let growthChartsRendered = false;
 
 function switchSubTab(key) {
     document.querySelectorAll('.sub-tab').forEach(el => el.classList.remove('active'));
-    document.querySelector(`.sub-tab[onclick*="${key}"]`).classList.add('active');
+    const targetTab = document.querySelector(`.sub-tab[data-tab="${key}"]`);
+    if (targetTab) targetTab.classList.add('active');
     document.querySelectorAll('.sub-tab-content').forEach(el => el.classList.remove('active'));
     document.getElementById('subtab-' + key).classList.add('active');
 
@@ -360,7 +376,8 @@ function renderFinancialCharts() {
     renderRevenueTrend(profit, abstract);
     renderBalanceStructure(balance);
     renderCashFlow(cash);
-    growthChartsRendered = false;
+    renderGrowthCharts();
+    growthChartsRendered = true;
 
     requestFinancialAI(latest, profit, balance, cash);
 }
@@ -379,7 +396,8 @@ function renderGrowthCharts() {
 
 function renderKPI(latest) {
     const grid = document.getElementById('kpiGrid');
-    if (Object.keys(latest).length === 0) { grid.innerHTML = '<div style="color:#888">暂无数据</div>'; return; }
+    grid.style.display = '';
+    if (Object.keys(latest).length === 0) { grid.innerHTML = '<div style="color:#888;text-align:center;padding:20px;">暂无数据</div>'; return; }
 
     const items = [
         { label: '营业总收入', value: latest['营业总收入'], change: latest['营业总收入同比增长率'] },

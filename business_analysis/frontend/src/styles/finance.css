@@ -157,6 +157,27 @@
     color: #999;
     font-size: 14px;
 }
+.ai-badge {
+    background: linear-gradient(135deg, #c0392b, #e74c3c);
+    color: #fff;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 500;
+}
+
+.table-wrap {
+    overflow-x: auto;
+    margin-bottom: 16px;
+}
+.table-wrap table {
+    min-width: 600px;
+}
+
+.badge {
+    display: inline-block;
+    vertical-align: middle;
+}
 
 .sub-tabs {
     display: flex;

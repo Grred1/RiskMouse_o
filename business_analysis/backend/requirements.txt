@@ -2,6 +2,5 @@ fastapi>=0.104.0
 uvicorn>=0.24.0
 akshare>=1.12.0
 pandas>=2.0.0
-coze-coding-dev-sdk>=1.0.0
-coze-coding-utils>=1.0.0
-langchain-core>=0.1.0
+openai>=1.0.0
+# Coze SDK 仅 Coze 平台可用，无需本地安装
