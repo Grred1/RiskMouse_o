@@ -196,7 +196,7 @@ def get_financial(
                         rec_date = f"{date_val[:4]}-{date_val[4:6]}-{date_val[6:8]}"
                     else:
                         rec_date = date_val[:10]
-                    rec = {"REPORT_DATE": rec_date}
+                    rec = {"REPORT_DATE": rec_date, "REPORT_TYPE": row.get("REPORT_TYPE", "")}
                     for c in _PROFIT_KEY_COLS:
                         actual_col = _PROFIT_ALIASES.get(c, c)
                         if actual_col in profit_df.columns:
@@ -217,7 +217,7 @@ def get_financial(
                         rec_date = f"{date_val[:4]}-{date_val[4:6]}-{date_val[6:8]}"
                     else:
                         rec_date = date_val[:10]
-                    rec = {"REPORT_DATE": rec_date}
+                    rec = {"REPORT_DATE": rec_date, "REPORT_TYPE": row.get("REPORT_TYPE", "")}
                     for c in _BALANCE_KEY_COLS:
                         if c in balance_df.columns:
                             rec[c] = _safe_val(row, c)
@@ -237,7 +237,7 @@ def get_financial(
                         rec_date = f"{date_val[:4]}-{date_val[4:6]}-{date_val[6:8]}"
                     else:
                         rec_date = date_val[:10]
-                    rec = {"REPORT_DATE": rec_date}
+                    rec = {"REPORT_DATE": rec_date, "REPORT_TYPE": row.get("REPORT_TYPE", "")}
                     for c in _CASHFLOW_KEY_COLS:
                         if c in cash_df.columns:
                             rec[c] = _safe_val(row, c)

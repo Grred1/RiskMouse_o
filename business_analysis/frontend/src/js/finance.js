@@ -416,7 +416,7 @@ function renderRevenueTrend(profit, abstract) {
     if (finChartInstances['revenue']) finChartInstances['revenue'].dispose();
     const chart = echarts.init(dom); finChartInstances['revenue'] = chart;
 
-    const annualData = profit.filter(d => d.REPORT_DATE && d.REPORT_DATE.endsWith('12-31')).slice(-6);
+    const annualData = profit.filter(d => d.REPORT_TYPE === '年报').slice(-6);
     const labels = annualData.map(d => d.REPORT_DATE.slice(0, 4));
     const revenue = annualData.map(d => d.TOTAL_OPERATE_INCOME ? +(d.TOTAL_OPERATE_INCOME / 1e8).toFixed(2) : 0);
     const netProfit = annualData.map(d => d.NETPROFIT ? +(d.NETPROFIT / 1e8).toFixed(2) : 0);
@@ -440,7 +440,7 @@ function renderBalanceStructure(balance) {
     if (finChartInstances['balance']) finChartInstances['balance'].dispose();
     const chart = echarts.init(dom); finChartInstances['balance'] = chart;
 
-    const annual = balance.filter(d => d.REPORT_DATE && d.REPORT_DATE.endsWith('12-31')).slice(-5);
+    const annual = balance.filter(d => d.REPORT_TYPE === '年报').slice(-5);
     const labels = annual.map(d => d.REPORT_DATE.slice(0, 4));
     const totalAssets = annual.map(d => d.TOTAL_ASSETS ? +(d.TOTAL_ASSETS / 1e8).toFixed(2) : 0);
     const totalLiab = annual.map(d => d.TOTAL_LIABILITIES ? +(d.TOTAL_LIABILITIES / 1e8).toFixed(2) : 0);
@@ -466,7 +466,7 @@ function renderCashFlow(cash) {
     if (finChartInstances['cashflow']) finChartInstances['cashflow'].dispose();
     const chart = echarts.init(dom); finChartInstances['cashflow'] = chart;
 
-    const annual = cash.filter(d => d.REPORT_DATE && d.REPORT_DATE.endsWith('12-31')).slice(-5);
+    const annual = cash.filter(d => d.REPORT_TYPE === '年报').slice(-5);
     const labels = annual.map(d => d.REPORT_DATE.slice(0, 4));
     const operate = annual.map(d => d.NETCASH_OPERATE ? +(d.NETCASH_OPERATE / 1e8).toFixed(2) : 0);
     const invest = annual.map(d => d.NETCASH_INVEST ? +(d.NETCASH_INVEST / 1e8).toFixed(2) : 0);
@@ -492,7 +492,7 @@ function renderRDExpense(profit) {
     if (finChartInstances['rd']) finChartInstances['rd'].dispose();
     const chart = echarts.init(dom); finChartInstances['rd'] = chart;
 
-    const annual = profit.filter(d => d.REPORT_DATE && d.REPORT_DATE.endsWith('12-31')).slice(-6);
+    const annual = profit.filter(d => d.REPORT_TYPE === '年报').slice(-6);
     if (annual.length === 0 || !annual.some(d => d.RESEARCH_EXPENSE)) {
         chart.setOption({ title: { text: '研发投入数据不可用', left: 'center', top: 'center', textStyle: { fontSize: 14, color: '#999' } } });
         return;
@@ -523,7 +523,7 @@ function renderExpenseRate(profit) {
     if (finChartInstances['expense']) finChartInstances['expense'].dispose();
     const chart = echarts.init(dom); finChartInstances['expense'] = chart;
 
-    const annual = profit.filter(d => d.REPORT_DATE && d.REPORT_DATE.endsWith('12-31')).slice(-5);
+    const annual = profit.filter(d => d.REPORT_TYPE === '年报').slice(-5);
     if (annual.length === 0) { chart.setOption({ title: { text: '费用数据不可用', left: 'center', top: 'center', textStyle: { fontSize: 14, color: '#999' } } }); return; }
     const labels = annual.map(d => d.REPORT_DATE.slice(0, 4));
 
@@ -552,7 +552,7 @@ function renderAssetExpansion(balance) {
     if (finChartInstances['assetExp']) finChartInstances['assetExp'].dispose();
     const chart = echarts.init(dom); finChartInstances['assetExp'] = chart;
 
-    const annual = balance.filter(d => d.REPORT_DATE && d.REPORT_DATE.endsWith('12-31')).slice(-5);
+    const annual = balance.filter(d => d.REPORT_TYPE === '年报').slice(-5);
     if (annual.length === 0) { chart.setOption({ title: { text: '资产数据不可用', left: 'center', top: 'center', textStyle: { fontSize: 14, color: '#999' } } }); return; }
     const labels = annual.map(d => d.REPORT_DATE.slice(0, 4));
     const fixed = annual.map(d => d.FIXED_ASSET ? +(d.FIXED_ASSET / 1e8).toFixed(2) : 0);
@@ -616,10 +616,10 @@ async function requestFinancialAI(latest, profit, balance, cash) {
 
     const code = financialData.code || '';
     const name = financialData.name || '';
-    const annualProfit = profit.filter(d => d.REPORT_DATE && d.REPORT_DATE.endsWith('12-31'));
-    const annualBalance = balance.filter(d => d.REPORT_DATE && d.REPORT_DATE.endsWith('12-31'));
+    const annualProfit = profit.filter(d => d.REPORT_TYPE === '年报');
+    const annualBalance = balance.filter(d => d.REPORT_TYPE === '年报');
     const latestBal = annualBalance.length > 0 ? annualBalance[annualBalance.length - 1] : {};
-    const latestCashRaw = (cash.filter(d => d.REPORT_DATE && d.REPORT_DATE.endsWith('12-31')));
+    const latestCashRaw = (cash.filter(d => d.REPORT_TYPE === '年报'));
     const latestCash = latestCashRaw.length > 0 ? latestCashRaw[latestCashRaw.length - 1] : {};
     const rdData = annualProfit.map(d => ({ date: d.REPORT_DATE, rd: d.RESEARCH_EXPENSE, rdYoy: d.RESEARCH_EXPENSE_YOY }));
     const trend = annualProfit.map(d => ({ date: d.REPORT_DATE, revenue: d.TOTAL_OPERATE_INCOME, profit: d.NETPROFIT }));
