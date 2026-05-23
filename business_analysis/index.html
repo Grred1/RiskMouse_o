@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>A 股分析系统</title>
+    <title>企业风控系统</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     <link rel="stylesheet" href="css/common.css">
     <link rel="stylesheet" href="css/finance.css">
@@ -12,17 +12,66 @@
 <body>
 
 <div class="header">
-    <h1>A 股分析系统</h1>
-    <p>多维财报分析 + 涨停叙事分析</p>
+    <h1>🛡️ 企业风控系统</h1>
+    <p>财报风险挖掘 · 舆论风险监控 · 宏观事件追踪</p>
     <div class="nav-tabs">
-        <div class="nav-tab active" data-feature="finance" onclick="switchFeature('finance')">📈 多维财报</div>
-        <div class="nav-tab" data-feature="zt" onclick="switchFeature('zt')">🚀 涨停叙事</div>
+        <div class="nav-tab" data-feature="macro" onclick="switchFeature('macro')">📅 宏观日历</div>
+        <div class="nav-tab active" data-feature="finance" onclick="switchFeature('finance')">📊 财报风险</div>
+        <div class="nav-tab" data-feature="sentiment" onclick="switchFeature('sentiment')">📰 舆论风险</div>
     </div>
 </div>
 
 <div class="container">
 
-    <!-- ===== 多维财报 ===== -->
+    <!-- ===== 宏观日历 ===== -->
+    <div class="feature-section" id="feature-macro">
+        <div class="panel">
+            <h3>📅 宏观事件日历</h3>
+            <div class="macro-toolbar">
+                <input type="month" id="macroMonthInput">
+                <span class="macro-hint">选择月份查看宏观事件</span>
+            </div>
+            <div class="macro-calendar" id="macroCalendar">
+                <div class="macro-placeholder">
+                    <div class="macro-icon">📅</div>
+                    <div>请选择月份查看宏观事件</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h3>🔮 即将发布的重要数据</h3>
+            <div class="upcoming-events" id="upcomingEvents">
+                <div class="event-item">
+                    <div class="event-date">每月 9-15 日</div>
+                    <div class="event-name">CPI/PPI 物价指数</div>
+                    <div class="event-tag tag-macro">宏观</div>
+                </div>
+                <div class="event-item">
+                    <div class="event-date">每月 27-31 日</div>
+                    <div class="event-name">官方制造业 PMI</div>
+                    <div class="event-tag tag-macro">宏观</div>
+                </div>
+                <div class="event-item">
+                    <div class="event-date">每年 4/7/10/1 月</div>
+                    <div class="event-name">中央政治局会议</div>
+                    <div class="event-tag tag-policy">政策</div>
+                </div>
+                <div class="event-item">
+                    <div class="event-date">每年 3/5/10 月</div>
+                    <div class="event-name">全国两会</div>
+                    <div class="event-tag tag-policy">政策</div>
+                </div>
+                <div class="event-item">
+                    <div class="event-date">每年 3/4 月</div>
+                    <div class="event-name">年报季报披露</div>
+                    <div class="event-tag tag-report">财报</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 财报风险 ===== -->
     <div class="feature-section active" id="feature-finance">
 
         <div class="search-box">
@@ -92,25 +141,25 @@
             </div>
 
             <div class="ai-section" id="aiSection">
-                <h3><span>AI 解读</span><span class="badge">DeepSeek</span></h3>
-                <div class="ai-loading" id="aiLoading">正在生成解读...</div>
+                <h3><span>AI 风险解读</span><span class="badge">Coze</span></h3>
+                <div class="ai-loading" id="aiLoading">正在生成风险分析...</div>
                 <div class="ai-content" id="aiContent"></div>
             </div>
         </div>
 
         <div class="section-header" id="finSectionHeader" style="display:none;">
             <span class="section-title">📊 财务全景分析</span>
-            <span style="font-size:13px;color:#888;margin-left:8px;">健康性 · 增长潜力</span>
+            <span style="font-size:13px;color:#888;margin-left:8px;">风险识别 · 增长潜力</span>
         </div>
         <div id="financialContent" style="display:none;">
             <div class="sub-tabs">
-                <div class="sub-tab active" onclick="switchSubTab('health')">健康性分析</div>
+                <div class="sub-tab active" onclick="switchSubTab('health')">风险识别</div>
                 <div class="sub-tab" onclick="switchSubTab('growth')">增长分析</div>
             </div>
 
             <div class="sub-tab-content active" id="subtab-health">
                 <div class="panel">
-                    <h3>核心指标</h3>
+                    <h3>核心风险指标</h3>
                     <div class="kpi-grid" id="kpiGrid"></div>
                 </div>
                 <div class="panel">
@@ -126,8 +175,8 @@
                     <div class="chart-container" id="chart-cashflow"></div>
                 </div>
                 <div class="ai-section" id="aiHealthSection" style="display:none;">
-                    <h3><span>AI 健康性分析</span><span class="badge">DeepSeek</span></h3>
-                    <div class="ai-loading" id="aiHealthLoading">正在生成解读...</div>
+                    <h3><span>AI 经营风险分析</span><span class="badge">Coze</span></h3>
+                    <div class="ai-loading" id="aiHealthLoading">正在生成风险分析...</div>
                     <div class="ai-content" id="aiHealthContent"></div>
                 </div>
             </div>
@@ -150,28 +199,28 @@
                     <div class="chart-container-lg" id="chart-profitability"></div>
                 </div>
                 <div class="ai-section" id="aiGrowthSection" style="display:none;">
-                    <h3><span>AI 增长分析</span><span class="badge">DeepSeek</span></h3>
-                    <div class="ai-loading" id="aiGrowthLoading">正在生成解读...</div>
+                    <h3><span>AI 增长风险分析</span><span class="badge">Coze</span></h3>
+                    <div class="ai-loading" id="aiGrowthLoading">正在生成风险分析...</div>
                     <div class="ai-content" id="aiGrowthContent"></div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- ===== 涨停叙事分析 ===== -->
-    <div class="feature-section" id="feature-zt">
+    <!-- ===== 舆论风险 ===== -->
+    <div class="feature-section" id="feature-sentiment">
 
         <div class="zt-toolbar">
             <label>📅 日期：</label>
             <input type="date" id="ztDateInput">
-            <button id="ztFetchBtn" onclick="fetchZTPool()">🔄 获取涨停数据</button>
+            <button id="ztFetchBtn" onclick="fetchZTPool()">🔄 获取市场数据</button>
             <span id="ztSummary" class="zt-summary"></span>
         </div>
 
         <div class="zt-error" id="ztError"></div>
 
         <div class="panel">
-            <h3>📋 今日涨停列表 <span style="font-size:12px;font-weight:400;color:#888;">（点击二板以上股票查看详情分析）</span></h3>
+            <h3>📋 今日涨停个股 <span style="font-size:12px;font-weight:400;color:#888;">（点击查看舆论风险分析）</span></h3>
             <div style="overflow-x:auto;">
                 <table>
                     <thead>
@@ -186,7 +235,7 @@
                         </tr>
                     </thead>
                     <tbody id="ztTableBody">
-                        <tr><td colspan="7" style="text-align:center;color:#999;padding:30px;">点击上方「获取涨停数据」开始分析</td></tr>
+                        <tr><td colspan="7" style="text-align:center;color:#999;padding:30px;">点击上方「获取市场数据」开始分析</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -197,7 +246,7 @@
                 <h3 id="ztDetailHeader" style="color:#0f3460;">-</h3>
                 <div id="ztDetailLoading" class="loading-overlay" style="display:block;">
                     <div class="spinner"></div>
-                    <div>正在获取主营构成与 AI 分析...</div>
+                    <div>正在获取舆论风险分析...</div>
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
                     <div style="background:#f7f8fa;border-radius:10px;padding:16px;">
@@ -210,7 +259,7 @@
                     </div>
                 </div>
                 <div style="background:linear-gradient(135deg,#fff5f5,#fff0f0);border-radius:10px;padding:16px;margin-top:16px;border:1px solid #ffd7d7;">
-                    <h4 style="font-size:14px;margin-bottom:8px;color:#c0392b;">🤖 AI 风险评估</h4>
+                    <h4 style="font-size:14px;margin-bottom:8px;color:#c0392b;">🤖 AI 舆论风险评估</h4>
                     <pre id="ztAnalysisArea" style="font-size:13px;line-height:1.8;color:#444;white-space:pre-wrap;font-family:inherit;"></pre>
                 </div>
             </div>
