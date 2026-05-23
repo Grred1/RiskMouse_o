@@ -11,55 +11,110 @@ import * as api from './services/api.js';
  * 搜索股票
  */
 async function search() {
-    const symbol = document.getElementById('stock-symbol')?.value?.trim();
+    const symbol = document.getElementById('symbolInput')?.value?.trim();
     if (!symbol) {
         alert('请输入股票代码');
         return;
     }
     
-    const content = document.getElementById('finance-content');
-    const aiResult = document.getElementById('finance-ai-result');
-    
-    if (content) content.innerHTML = '<div class="loading">加载中...</div>';
-    if (aiResult) {
-        aiResult.style.display = 'block';
-        aiResult.innerHTML = '<div class="loading"><span class="ai-label">Coze AI 分析中...</span></div>';
+    // 显示加载状态
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const loadingText = document.getElementById('loadingText');
+    if (loadingOverlay) {
+        loadingOverlay.style.display = 'flex';
+        loadingText.textContent = '正在获取主营构成...';
     }
+    const mainContent = document.getElementById('mainContent');
+    const aiSection = document.getElementById('aiSection');
+    const aiLoading = document.getElementById('aiLoading');
+    const aiContent = document.getElementById('aiContent');
     
     try {
         const zygcData = await api.getZygc(symbol);
         
-        if (content) {
-            let html = '<h4>主营构成</h4>';
-            if (zygcData.zygc && zygcData.zygc.length > 0) {
-                html += '<table class="zygc-table"><thead><tr><th>业务</th><th>收入(万)</th><th>占比</th></tr></thead><tbody>';
-                zygcData.zygc.forEach(item => {
-                    html += `<tr><td>${item.business || '-'}</td><td>${item.revenue || '-'}</td><td>${item.ratio || '-'}</td></tr>`;
-                });
-                html += '</tbody></table>';
-            } else {
-                html += '<p>暂无数据</p>';
-            }
-            html += `<p class="data-source">数据来源: ${zygcData.source || '网络'}</p>`;
-            content.innerHTML = html;
+        if (loadingOverlay) loadingOverlay.style.display = 'none';
+        if (mainContent) mainContent.style.display = 'block';
+        
+        // 更新主营表格
+        renderZygcData(zygcData);
+        
+        if (aiSection) aiSection.style.display = 'block';
+        if (aiLoading) {
+            aiLoading.style.display = 'block';
+            aiContent.innerHTML = '';
         }
         
-        if (aiResult) {
-            const aiAnalysis = await api.analyzeZygc(symbol, zygcData.zygc);
-            aiResult.innerHTML = `<div class="ai-result"><span class="ai-label">Coze AI 分析:</span><div class="ai-content">${aiAnalysis.analysis || aiAnalysis.result || '暂无分析结果'}</div></div>`;
-        }
+        // 调用 AI 分析
+        const aiAnalysis = await api.analyzeZygc(symbol, zygcData.zygc);
+        if (aiLoading) aiLoading.style.display = 'none';
+        if (aiContent) aiContent.innerHTML = aiAnalysis.analysis || aiAnalysis.result || '暂无分析结果';
+        
     } catch (error) {
         console.error('搜索失败:', error);
-        if (content) content.innerHTML = `<p class="error">搜索失败: ${error.message}</p>`;
-        if (aiResult) aiResult.innerHTML = `<p class="error">AI 分析失败</p>`;
+        if (loadingOverlay) loadingOverlay.style.display = 'none';
+        const errorMsg = document.getElementById('errorMsg');
+        if (errorMsg) errorMsg.textContent = `搜索失败: ${error.message}`;
     }
+}
+
+/**
+ * 渲染主营构成数据
+ */
+function renderZygcData(zygcData) {
+    // 按行业分类
+    const industryData = zygcData.industry || [];
+    renderTable('table-industry', industryData, '按行业分类');
+    renderChart('chart-industry', industryData, '行业占比');
+    
+    // 按产品分类
+    const productData = zygcData.product || [];
+    renderTable('table-product', productData, '按产品分类');
+    renderChart('chart-product', productData, '产品占比');
+    
+    // 按地区分类
+    const regionData = zygcData.region || [];
+    renderTable('table-region', regionData, '按地区分类');
+    renderChart('chart-region', regionData, '地区占比');
+}
+
+function renderTable(tableId, data, title) {
+    const table = document.getElementById(tableId);
+    if (!table) return;
+    
+    if (!data || data.length === 0) {
+        table.innerHTML = '<tr><td colspan="3">暂无数据</td></tr>';
+        return;
+    }
+    
+    let html = `<tr><th>分类</th><th>金额(万)</th><th>占比</th></tr>`;
+    data.forEach(item => {
+        html += `<tr><td>${item.name || '-'}</td><td>${item.amount || item.revenue || '-'}</td><td>${item.ratio || '-'}</td></tr>`;
+    });
+    table.innerHTML = html;
+}
+
+function renderChart(chartId, data, title) {
+    const chartDom = document.getElementById(chartId);
+    if (!chartDom || !data || data.length === 0) return;
+    
+    const chart = echarts.init(chartDom);
+    chart.setOption({
+        title: { text: title, left: 'center', textStyle: { fontSize: 14 } },
+        tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+        series: [{
+            type: 'pie',
+            radius: ['40%', '70%'],
+            data: data.map(item => ({ name: item.name || '-', value: parseFloat(item.amount || item.revenue || 0) })),
+            label: { show: true, formatter: '{b}' }
+        }]
+    });
 }
 
 /**
  * 快捷搜索
  */
 function quickSearch(symbol) {
-    const input = document.getElementById('stock-symbol');
+    const input = document.getElementById('symbolInput');
     if (input) {
         input.value = symbol;
         search();
@@ -114,36 +169,45 @@ function switchSubTab(tab) {
  */
 async function fetchZTPool() {
     const btn = document.getElementById('ztFetchBtn');
-    const content = document.getElementById('zt-content');
+    const summary = document.getElementById('ztSummary');
+    const tableBody = document.getElementById('ztTableBody');
+    const errorDiv = document.getElementById('ztError');
     
     if (btn) btn.disabled = true;
-    if (content) content.innerHTML = '<div class="loading">加载中...</div>';
+    if (errorDiv) errorDiv.textContent = '';
     
     try {
         const data = await api.getZTPool();
-        if (content) {
-            let html = '<h4>二板以上涨停股票</h4>';
+        
+        // 更新统计
+        if (summary) {
+            summary.textContent = `共 ${data.stocks?.length || 0} 只涨停`;
+        }
+        
+        // 更新表格
+        if (tableBody) {
             if (data.stocks && data.stocks.length > 0) {
-                html += '<table class="zt-table"><thead><tr><th>代码</th><th>名称</th><th>连板</th><th>行业</th><th>分析</th></tr></thead><tbody>';
-                data.stocks.forEach(stock => {
-                    html += `<tr>
+                let html = '';
+                data.stocks.forEach((stock, i) => {
+                    html += `<tr style="cursor:pointer;" onclick="analyzeStock('${stock.code}', '${stock.name}', '${stock.industry || ''}')">
+                        <td style="text-align:center;">${i + 1}</td>
                         <td>${stock.code}</td>
                         <td>${stock.name}</td>
-                        <td>${stock.board}</td>
+                        <td style="text-align:center;color:#e74c3c;font-weight:bold;">${stock.board}</td>
+                        <td style="text-align:right;color:#2ecc71;">${stock.price || '-'}</td>
                         <td>${stock.industry || '-'}</td>
-                        <td><button onclick="analyzeStock('${stock.code}', '${stock.name}', '${stock.industry || ''}')">分析</button></td>
+                        <td style="text-align:right;">${stock.seal || '-'}</td>
                     </tr>`;
                 });
-                html += '</tbody></table>';
+                tableBody.innerHTML = html;
             } else {
-                html += '<p>暂无数据</p>';
+                tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#999;padding:30px;">暂无涨停数据</td></tr>';
             }
-            html += `<p class="data-source">数据来源: ${data.source || '财联社'}</p>`;
-            content.innerHTML = html;
         }
     } catch (error) {
         console.error('获取涨停池失败:', error);
-        if (content) content.innerHTML = `<p class="error">获取失败: ${error.message}</p>`;
+        if (errorDiv) errorDiv.textContent = `获取失败: ${error.message}`;
+        if (tableBody) tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#e74c3c;padding:30px;">加载失败</td></tr>';
     } finally {
         if (btn) btn.disabled = false;
     }
@@ -153,20 +217,26 @@ async function fetchZTPool() {
  * 分析单只股票
  */
 async function analyzeStock(code, name, industry) {
-    const aiResult = document.getElementById('zt-ai-result');
-    if (aiResult) {
-        aiResult.style.display = 'block';
-        aiResult.innerHTML = '<div class="loading"><span class="ai-label">Coze AI 风险分析中...</span></div>';
-    }
+    const detailPanel = document.getElementById('ztDetailPanel');
+    const detailHeader = document.getElementById('ztDetailHeader');
+    const detailLoading = document.getElementById('ztDetailLoading');
+    const analysisArea = document.getElementById('ztAnalysisArea');
+    
+    if (detailPanel) detailPanel.style.display = 'block';
+    if (detailHeader) detailHeader.textContent = `${code} ${name}`;
+    if (detailLoading) detailLoading.style.display = 'flex';
+    if (analysisArea) analysisArea.textContent = '';
     
     try {
         const analysis = await api.analyzeZT(code, name, industry);
-        if (aiResult) {
-            aiResult.innerHTML = `<div class="ai-result"><span class="ai-label">Coze AI 风险分析:</span><div class="ai-content">${analysis.analysis || analysis.result || '暂无分析结果'}</div></div>`;
+        if (detailLoading) detailLoading.style.display = 'none';
+        if (analysisArea) {
+            analysisArea.textContent = analysis.analysis || analysis.result || '暂无分析结果';
         }
     } catch (error) {
         console.error('分析失败:', error);
-        if (aiResult) aiResult.innerHTML = `<p class="error">分析失败: ${error.message}</p>`;
+        if (detailLoading) detailLoading.style.display = 'none';
+        if (analysisArea) analysisArea.textContent = `分析失败: ${error.message}`;
     }
 }
 

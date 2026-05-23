@@ -16,9 +16,9 @@ function switchFeature(feature) {
         tab.classList.toggle('active', tab.dataset.feature === feature);
     });
     
-    // 切换内容面板
-    document.querySelectorAll('.feature-panel').forEach(panel => {
-        panel.classList.toggle('active', panel.id === `panel-${feature}`);
+    // 切换内容面板 (HTML 中是 feature-{name})
+    document.querySelectorAll('.feature-section').forEach(panel => {
+        panel.classList.toggle('active', panel.id === `feature-${feature}`);
     });
     
     console.log('切换到:', feature);
