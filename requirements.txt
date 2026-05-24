@@ -15,3 +15,8 @@ jieba>=0.42.0
 
 # OCR 已移至前端 Tesseract.js，服务端无需额外依赖
 python-jose>=3.5.0
+
+# ── Coze SDK + LLM 消息类型 ──────────────────────────────────────
+coze-coding-dev-sdk>=0.1.0
+coze-coding-utils>=0.1.0
+langchain-core>=0.3.0
