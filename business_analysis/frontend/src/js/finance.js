@@ -34,6 +34,11 @@ async function search() {
     if (!input) { showError('请输入股票代码'); return; }
     hideError();
 
+    // 重置切股状态
+    growthChartsRendered = false;
+    // 重置所有财务图表面板为可见（避免上一只股票隐藏状态残留）
+    document.querySelectorAll('#financialContent .panel').forEach(p => p.style.display = '');
+
     document.getElementById('loadingOverlay').style.display = 'block';
     document.getElementById('loadingText').textContent = '正在获取主营构成数据...';
     document.getElementById('mainContent').style.display = 'none';
@@ -139,6 +144,23 @@ function render() {
     document.getElementById('reportSelector').style.display = 'flex';
     document.getElementById('tabs').style.display = 'flex';
 
+    // 仅显示有数据的分类 Tab
+    const availableCategories = new Set(allData.records.map(r => r.分类类型));
+    document.querySelectorAll('.tabs .tab').forEach(el => {
+        const catKey = el.dataset.tab;
+        const catName = REVERSE_MAP[catKey];
+        el.style.display = availableCategories.has(catName) ? '' : 'none';
+    });
+
+    // 如果当前激活的 Tab 被隐藏，切换到第一个可见 Tab
+    const activeTab = document.querySelector('.tabs .tab.active');
+    if (activeTab && activeTab.style.display === 'none') {
+        const firstVisible = document.querySelector('.tabs .tab:not([style*="none"])');
+        if (firstVisible) {
+            switchTab(firstVisible.dataset.tab);
+        }
+    }
+
     onReportChange();
 }
 
@@ -157,6 +179,13 @@ function renderCategory(catKey, date) {
     const catName = REVERSE_MAP[catKey];
     const records = allData.records.filter(r => r.分类类型 === catName && r.报告日期 === date);
     const sorted = [...records].sort((a, b) => b.收入比例 - a.收入比例);
+
+    const tabContent = document.getElementById('tab-' + catKey);
+    if (sorted.length === 0) {
+        if (tabContent) tabContent.style.display = 'none';
+        return;
+    }
+    if (tabContent) tabContent.style.display = '';
 
     renderTable(catKey, sorted);
     renderChart(catKey, sorted);
@@ -276,14 +305,16 @@ function renderChart(catKey, data) {
 function switchTab(catKey) {
     document.querySelectorAll('.tabs .tab').forEach(el => el.classList.remove('active'));
     document.querySelector(`.tabs .tab[data-tab="${catKey}"]`).classList.add('active');
-    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-    const tabEl = document.getElementById('tab-' + catKey);
-    if (tabEl) {
-        tabEl.classList.add('active');
-        setTimeout(() => {
-            if (chartInstances[catKey]) chartInstances[catKey].resize();
-        }, 100);
-    }
+    document.querySelectorAll('.tab-content').forEach(el => {
+        if (el.id === 'tab-' + catKey) {
+            el.classList.add('active');
+        } else {
+            el.classList.remove('active');
+        }
+    });
+    setTimeout(() => {
+        if (chartInstances[catKey]) chartInstances[catKey].resize();
+    }, 100);
 }
 
 // ===== 财务全景 =====
@@ -352,6 +383,16 @@ function renderGrowthCharts() {
     const profit = financialData.profit_sheet || [];
     const balance = financialData.balance_sheet || [];
     const abstract = financialData.financial_abstract || [];
+
+    // 重置所有图表面板为可见，各 render 函数会根据数据有无自行隐藏
+    ['chart-rd', 'chart-expense', 'chart-asset-expansion', 'chart-profitability',
+     'chart-revenue-trend', 'chart-balance', 'chart-cashflow'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            const panel = el.closest('.panel');
+            if (panel) panel.style.display = '';
+        }
+    });
 
     renderRDExpense(profit);
     renderExpenseRate(profit);
@@ -472,14 +513,18 @@ function renderCashFlow(cash) {
 
 function renderRDExpense(profit) {
     const dom = document.getElementById('chart-rd');
+    const panel = dom ? dom.closest('.panel') : null;
     if (finChartInstances['rd']) finChartInstances['rd'].dispose();
-    const chart = echarts.init(dom); finChartInstances['rd'] = chart;
 
     const annual = profit.filter(d => d.REPORT_TYPE === '年报').slice(-6);
     if (annual.length === 0 || !annual.some(d => d.RESEARCH_EXPENSE)) {
-        chart.setOption({ title: { text: '研发投入数据不可用', left: 'center', top: 'center', textStyle: { fontSize: 14, color: '#999' } } });
+        if (panel) panel.style.display = 'none';
+        if (finChartInstances['rd']) { finChartInstances['rd'].dispose(); delete finChartInstances['rd']; }
         return;
     }
+    if (panel) panel.style.display = '';
+
+    const chart = echarts.init(dom); finChartInstances['rd'] = chart;
     const labels = annual.map(d => d.REPORT_DATE.slice(0, 4));
     const rd = annual.map(d => d.RESEARCH_EXPENSE ? +(d.RESEARCH_EXPENSE / 1e8).toFixed(2) : 0);
     const rdYoy = annual.map(d => d.RESEARCH_EXPENSE_YOY ? +d.RESEARCH_EXPENSE_YOY.toFixed(2) : null);
@@ -503,40 +548,56 @@ function renderRDExpense(profit) {
 
 function renderExpenseRate(profit) {
     const dom = document.getElementById('chart-expense');
+    const panel = dom ? dom.closest('.panel') : null;
     if (finChartInstances['expense']) finChartInstances['expense'].dispose();
-    const chart = echarts.init(dom); finChartInstances['expense'] = chart;
 
     const annual = profit.filter(d => d.REPORT_TYPE === '年报').slice(-5);
-    if (annual.length === 0) { chart.setOption({ title: { text: '费用数据不可用', left: 'center', top: 'center', textStyle: { fontSize: 14, color: '#999' } } }); return; }
-    const labels = annual.map(d => d.REPORT_DATE.slice(0, 4));
+    if (annual.length === 0 || !annual.some(d => d.RESEARCH_EXPENSE || d.SALE_EXPENSE || d.MANAGE_EXPENSE)) {
+        if (panel) panel.style.display = 'none';
+        if (finChartInstances['expense']) { finChartInstances['expense'].dispose(); delete finChartInstances['expense']; }
+        return;
+    }
+    if (panel) panel.style.display = '';
 
+    const chart = echarts.init(dom); finChartInstances['expense'] = chart;
+    const labels = annual.map(d => d.REPORT_DATE.slice(0, 4));
     const calcRate = (exp, rev) => { return exp && rev ? +((exp / rev) * 100).toFixed(2) : 0; };
     const rdRate = annual.map(d => calcRate(d.RESEARCH_EXPENSE, d.TOTAL_OPERATE_INCOME));
     const saleRate = annual.map(d => calcRate(d.SALE_EXPENSE, d.TOTAL_OPERATE_INCOME));
     const mgmtRate = annual.map(d => calcRate(d.MANAGE_EXPENSE, d.TOTAL_OPERATE_INCOME));
 
+    // 只显示有数据的费用线
+    const legendData = [];
+    const seriesData = [];
+    if (rdRate.some(v => v > 0)) { legendData.push('研发费用率'); seriesData.push({ name: '研发费用率', type: 'line', symbol: 'circle', symbolSize: 8, lineStyle: { color: '#4facfe', width: 2 }, itemStyle: { color: '#4facfe' }, data: rdRate }); }
+    if (saleRate.some(v => v > 0)) { legendData.push('销售费用率'); seriesData.push({ name: '销售费用率', type: 'line', symbol: 'circle', symbolSize: 8, lineStyle: { color: '#f093fb', width: 2 }, itemStyle: { color: '#f093fb' }, data: saleRate }); }
+    if (mgmtRate.some(v => v > 0)) { legendData.push('管理费用率'); seriesData.push({ name: '管理费用率', type: 'line', symbol: 'circle', symbolSize: 8, lineStyle: { color: '#ffa726', width: 2 }, itemStyle: { color: '#ffa726' }, data: mgmtRate }); }
+
     chart.setOption({
         tooltip: { trigger: 'axis' },
-        legend: { data: ['研发费用率', '销售费用率', '管理费用率'], top: 0, left: 'center', textStyle: { fontSize: 12 } },
+        legend: { data: legendData, top: 0, left: 'center', textStyle: { fontSize: 12 } },
         grid: { left: '3%', right: '4%', bottom: '3%', top: '18%', containLabel: true },
         xAxis: { type: 'category', data: labels, axisLabel: { fontSize: 11 } },
         yAxis: { type: 'value', name: '占比(%)', axisLabel: { fontSize: 11, formatter: '{value}%' }, min: 0 },
-        series: [
-            { name: '研发费用率', type: 'line', symbol: 'circle', symbolSize: 8, lineStyle: { color: '#4facfe', width: 2 }, itemStyle: { color: '#4facfe' }, data: rdRate },
-            { name: '销售费用率', type: 'line', symbol: 'circle', symbolSize: 8, lineStyle: { color: '#f093fb', width: 2 }, itemStyle: { color: '#f093fb' }, data: saleRate },
-            { name: '管理费用率', type: 'line', symbol: 'circle', symbolSize: 8, lineStyle: { color: '#ffa726', width: 2 }, itemStyle: { color: '#ffa726' }, data: mgmtRate },
-        ]
+        series: seriesData,
     });
     window.addEventListener('resize', () => chart.resize());
 }
 
 function renderAssetExpansion(balance) {
     const dom = document.getElementById('chart-asset-expansion');
+    const panel = dom ? dom.closest('.panel') : null;
     if (finChartInstances['assetExp']) finChartInstances['assetExp'].dispose();
-    const chart = echarts.init(dom); finChartInstances['assetExp'] = chart;
 
     const annual = balance.filter(d => d.REPORT_TYPE === '年报').slice(-5);
-    if (annual.length === 0) { chart.setOption({ title: { text: '资产数据不可用', left: 'center', top: 'center', textStyle: { fontSize: 14, color: '#999' } } }); return; }
+    if (annual.length === 0 || !annual.some(d => d.FIXED_ASSET)) {
+        if (panel) panel.style.display = 'none';
+        if (finChartInstances['assetExp']) { finChartInstances['assetExp'].dispose(); delete finChartInstances['assetExp']; }
+        return;
+    }
+    if (panel) panel.style.display = '';
+
+    const chart = echarts.init(dom); finChartInstances['assetExp'] = chart;
     const labels = annual.map(d => d.REPORT_DATE.slice(0, 4));
     const fixed = annual.map(d => d.FIXED_ASSET ? +(d.FIXED_ASSET / 1e8).toFixed(2) : 0);
     const inProgress = annual.map(d => d.CIP ? +(d.CIP / 1e8).toFixed(2) : 0);
@@ -557,11 +618,18 @@ function renderAssetExpansion(balance) {
 
 function renderProfitabilityTrend(abstract) {
     const dom = document.getElementById('chart-profitability');
+    const panel = dom ? dom.closest('.panel') : null;
     if (finChartInstances['profitability']) finChartInstances['profitability'].dispose();
-    const chart = echarts.init(dom); finChartInstances['profitability'] = chart;
 
     const annual = abstract.filter(d => d['报告期'] && d['报告期'].endsWith('12-31')).slice(-5);
-    if (annual.length === 0) { chart.setOption({ title: { text: '盈利能力数据不可用', left: 'center', top: 'center', textStyle: { fontSize: 14, color: '#999' } } }); return; }
+    if (annual.length === 0) {
+        if (panel) panel.style.display = 'none';
+        if (finChartInstances['profitability']) { finChartInstances['profitability'].dispose(); delete finChartInstances['profitability']; }
+        return;
+    }
+    if (panel) panel.style.display = '';
+
+    const chart = echarts.init(dom); finChartInstances['profitability'] = chart;
     const labels = annual.map(d => String(d['报告期']).slice(0, 4));
     const parsePct = (v) => { if (!v) return 0; const n = parseFloat(String(v).replace('%', '')); return isNaN(n) ? 0 : n; };
     const roe = annual.map(d => parsePct(d['净资产收益率']));
