@@ -9,9 +9,5 @@ cd "$PROJECT_DIR"
 export PORT=5000
 export LLM_PROVIDER=coze
 
-# 清理 5000 端口残留进程
-fuser -k 5000/tcp 2>/dev/null || true
-sleep 1
-
-# 启动 FastAPI 服务
-exec uvicorn backend.app.main:app --host 0.0.0.0 --port 5000
+# 启动 FastAPI 服务（通过 python -m 确保模块可访问）
+exec python -m uvicorn backend.app.main:app --host 0.0.0.0 --port 5000
