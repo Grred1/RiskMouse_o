@@ -54,10 +54,10 @@ def call_coze_agent(
         >>> reply = call_coze_agent("2026-05-19 欧盟议会通过钢铁关税翻倍")
         >>> print(reply)
     """
-    url = api_url or _get_env("COZE_API_URL", "https://xks6nwtnyr.coze.site/stream_run")
-    token = bearer_token or _get_env("COZE_BEARER_TOKEN")
+    url = api_url or _get_env("COZE_API_URL", "https://vj2f4knwyx.coze.site/stream_run")
+    token = bearer_token or _get_env("COZE_BEARER_TOKEN","eyJhbGciOiJSUzI1NiIsImtpZCI6ImMwYWVlZjc4LWEzZWUtNGY4My04YmE4LTQ3ODYzMTUyNzFhMyJ9.eyJpc3MiOiJodHRwczovL2FwaS5jb3plLmNuIiwiYXVkIjpbIlpNNUJJRTc1NXVkTHVFUVBySkhIa0szdFlEa2tTWDdaIl0sImV4cCI6ODIxMDI2Njg3Njc5OSwiaWF0IjoxNzc5NjMyNDA2LCJzdWIiOiJzcGlmZmU6Ly9hcGkuY296ZS5jbi93b3JrbG9hZF9pZGVudGl0eS9pZDo3NjQzNDUzNTAxMTY2NTgzODQyIiwic3JjIjoiaW5ib3VuZF9hdXRoX2FjY2Vzc190b2tlbl9pZDo3NjQzNDYyOTg0MzAzMzc4NDcwIn0.EBwew0tGEXXDXaWexHwpqyu2LO7zk2j6KLLKfmyIB26KusDCyTn95cRItKyiRrkQs55veSvo49063-rzBDqOttrzNURBBzzlWaSaCTSwYSQDWGztVyu1PitWRn1uhS1JuYowmqELTO0LMVij5S5BvNUeRBQBXU48WO6S4wFhAP1K4IpIY4jsfR3iOSXANG1hHkWi9O6vJNe7IYMMDUlSczbOnJKo46oXIzXDhBjZqZJrDdi3gBIZ-pZ-oELC7bFji6W42D1xMvbL3xNBhA30zCO7xVbz6Cq1M33B4BaaP9A49bUtyHOJRFJOru1S18AwaEQduEmANKctL0FMOsNRew")
     sid = session_id or _get_env("COZE_SESSION_ID", "Wo7hBi1xBAC9pCWEWbQkN")
-    pid = project_id or _get_env("COZE_PROJECT_ID", "7643022710771204136")
+    pid = project_id or _get_env("COZE_PROJECT_ID", "7643438379408818176")
 
     if not token:
         return ""
