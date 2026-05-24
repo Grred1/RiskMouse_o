@@ -121,6 +121,11 @@ async function showRiskDetail(code, name, source, industry) {
 
     try {
         const pureCode = code.replace(/^(SH|SZ|BJ)/, '');
+
+        // 从 riskPoolData 中查找 board（连板数）
+        const stockInfo = riskPoolData.find(s => s.code === code);
+        const board = stockInfo ? stockInfo.board : 0;
+
         // 并行获取 AI 风险评分和股吧数据
         const [analysisRes, gubaRes] = await Promise.all([
             fetch(`/api/risk/analyze`, {
@@ -130,7 +135,8 @@ async function showRiskDetail(code, name, source, industry) {
                     code: code,
                     name: name,
                     source: source,
-                    industry: industry
+                    industry: industry,
+                    board: board
                 })
             }),
             fetch(`/api/risk/guba?code=${pureCode}`)
@@ -139,15 +145,28 @@ async function showRiskDetail(code, name, source, industry) {
         const analysisData = await analysisRes.json();
         const gubaData = await gubaRes.json();
 
-        // 显示 AI 风险分析（后台已包含主营构成+财务数据）
+        // 更新星标行
+        const starRow = document.getElementById('ztStarRow');
+        if (starRow) {
+            if (analysisData.scores && analysisData.scores.length > 0) {
+                starRow.innerHTML = renderStarBadges(analysisData.scores);
+                starRow.style.display = 'flex';
+            } else {
+                starRow.style.display = 'none';
+            }
+        }
+
+        // 显示风险分析
         if (analysisData.error) {
-            analysisArea.textContent = '风险分析失败: ' + analysisData.error;
+            analysisArea.innerHTML = `<div class="risk-error">风险分析失败: ${analysisData.error}</div>`;
+        } else if (analysisData.scores && analysisData.scores.length > 0) {
+            analysisArea.innerHTML = renderRiskScores(analysisData);
         } else if (analysisData.risk_analysis) {
-            analysisArea.textContent = analysisData.risk_analysis;
+            analysisArea.innerHTML = renderFallbackText(analysisData.risk_analysis);
         } else if (analysisData.analysis) {
-            analysisArea.textContent = analysisData.analysis;
+            analysisArea.innerHTML = `<div class="risk-fallback-text">${analysisData.analysis}</div>`;
         } else {
-            analysisArea.textContent = '暂无风险分析数据';
+            analysisArea.innerHTML = '<div class="risk-error">暂无风险分析数据</div>';
         }
 
         // 显示股吧关注点
@@ -163,6 +182,190 @@ async function showRiskDetail(code, name, source, industry) {
 
     // 高亮当前行
     renderRiskPool();
+}
+
+function renderRiskScores(data) {
+    const scores = data.scores || [];
+    const overall = data.overall_conclusion || '';
+    const finalConclusion = data.final_conclusion || '';
+
+    // 评分对应的颜色（1-5分）
+    const scoreColors = {
+        1: { bar: '#27ae60', bg: '#e8f8e8', label: '低风险' },
+        2: { bar: '#82c91e', bg: '#f0fae0', label: '中低风险' },
+        3: { bar: '#f59f00', bg: '#fff3d6', label: '中风险' },
+        4: { bar: '#e67e22', bg: '#fde8d0', label: '中高风险' },
+        5: { bar: '#c0392b', bg: '#fce4e4', label: '高风险' },
+    };
+
+    // 总体结论标签
+    let overallBadge = '';
+    if (overall) {
+        const avgScore = scores.reduce((sum, s) => sum + s.score, 0) / scores.length;
+        const level = Math.round(avgScore);
+        const color = scoreColors[level] || scoreColors[3];
+        overallBadge = `
+            <div class="risk-overall-badge" style="background:${color.bg};border:1px solid ${color.bar};">
+                <span class="risk-overall-label">总体结论</span>
+                <span class="risk-overall-text">${overall}</span>
+            </div>
+        `;
+    }
+
+    // 每个维度的评分条
+    let scoresHtml = '';
+    scores.forEach(s => {
+        const sc = Math.max(1, Math.min(5, s.score));
+        const color = scoreColors[sc] || scoreColors[3];
+        const pct = (sc / 5) * 100;
+        scoresHtml += `
+            <div class="risk-dimension-row">
+                <div class="risk-dimension-header">
+                    <span class="risk-dimension-label">${s.label}</span>
+                    <span class="risk-dimension-score" style="color:${color.bar};">
+                        ${sc}<span class="risk-dimension-max">/5</span>
+                        <span class="risk-dimension-tag" style="background:${color.bg};color:${color.bar};border:1px solid ${color.bar};">${color.label}</span>
+                    </span>
+                </div>
+                <div class="risk-bar-track">
+                    <div class="risk-bar-fill" style="width:${pct}%;background:${color.bar};"></div>
+                </div>
+            </div>
+        `;
+    });
+
+    // 综合结论
+    let conclusionHtml = '';
+    if (finalConclusion) {
+        conclusionHtml = `
+            <div class="risk-final-conclusion">
+                <div class="risk-final-title">📋 综合结论</div>
+                <div class="risk-final-text">${finalConclusion}</div>
+            </div>
+        `;
+    }
+
+    return `
+        ${overallBadge}
+        <div class="risk-scores-container">
+            ${scoresHtml}
+        </div>
+        ${conclusionHtml}
+    `;
+}
+
+function renderStarBadges(scores) {
+    const dimensionIcons = {
+        logic_match: '🔗',
+        financial_health: '💰',
+        valuation_bubble: '🎈',
+        capital_risk: '💧',
+        governance_risk: '🏛️',
+    };
+    return scores.map(s => {
+        const filled = '★'.repeat(s.score);
+        const empty = '☆'.repeat(5 - s.score);
+        const icon = dimensionIcons[s.key] || '📊';
+        return `
+            <div class="risk-star-item" title="${s.label}: ${s.score}/5">
+                <span class="risk-star-icon">${icon}</span>
+                <span class="risk-star-label">${s.label}</span>
+                <span class="risk-star-stars">${filled}${empty}</span>
+                <span class="risk-star-num">${s.score}</span>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderFallbackText(text) {
+    if (!text) return '<div class="risk-error">暂无风险分析数据</div>';
+
+    let html = '';
+
+    // 提取综合风险评分行
+    const overallMatch = text.match(/【综合风险评分】(.+?)(?:\n|$)/);
+    if (overallMatch) {
+        const overallText = overallMatch[1].trim();
+        let riskLevel = '中风险';
+        let barColor = '#f59f00';
+        if (overallText.includes('高风险') || overallText.includes('高')) { riskLevel = '高风险'; barColor = '#c0392b'; }
+        else if (overallText.includes('低风险') || overallText.includes('低')) { riskLevel = '低风险'; barColor = '#27ae60'; }
+
+        html += `
+            <div class="risk-fallback-overall" style="border-color:${barColor};">
+                <span class="risk-fallback-overall-label" style="background:${barColor};">综合风险</span>
+                <span class="risk-fallback-overall-text">${overallText}</span>
+            </div>
+        `;
+    }
+
+    // 提取各维度评分
+    const dimSection = text.match(/【各维度评分】([\s\S]*?)(?=【|$)/);
+    if (dimSection) {
+        const lines = dimSection[1].split('\n').filter(l => l.trim());
+        html += '<div class="risk-fallback-dims">';
+        lines.forEach(line => {
+            const trimmed = line.replace(/^-\s*\*{0,2}/, '').trim();
+            if (!trimmed) return;
+            // 匹配 "**基本面风险: 8/10** —— 理由"
+            const dimMatch = trimmed.match(/\*{0,2}(.+?)\s*:\s*(\d+)\/10\*{0,2}\s*[—\-–]+\s*(.+)/);
+            if (dimMatch) {
+                const dimName = dimMatch[1].replace(/\*{0,2}/g, '').trim();
+                const dimScore = parseInt(dimMatch[2]);
+                const dimReason = dimMatch[3].trim();
+                const pct = Math.min(100, (dimScore / 10) * 100);
+                const color = dimScore >= 8 ? '#c0392b' : dimScore >= 6 ? '#e67e22' : dimScore >= 4 ? '#f59f00' : '#27ae60';
+                html += `
+                    <div class="risk-fallback-dim">
+                        <div class="risk-fallback-dim-header">
+                            <span class="risk-fallback-dim-name">${dimName}</span>
+                            <span class="risk-fallback-dim-score" style="color:${color};">${dimScore}<span class="risk-dimension-max">/10</span></span>
+                        </div>
+                        <div class="risk-bar-track">
+                            <div class="risk-bar-fill" style="width:${pct}%;background:${color};"></div>
+                        </div>
+                        <div class="risk-fallback-dim-reason">${dimReason}</div>
+                    </div>
+                `;
+            }
+        });
+        html += '</div>';
+    }
+
+    // 提取核心风险点
+    const riskSection = text.match(/【核心风险点】([\s\S]*?)(?=【|$)/);
+    if (riskSection) {
+        const items = riskSection[1].split('\n').filter(l => l.trim());
+        html += '<div class="risk-fallback-points">';
+        html += '<div class="risk-fallback-section-title">⚠️ 核心风险点</div>';
+        items.forEach(item => {
+            const clean = item.replace(/^\d+[.、]\s*/, '').replace(/^\*\*/, '').replace(/\*\*$/, '').trim();
+            if (clean) {
+                html += `<div class="risk-fallback-point">${clean}</div>`;
+            }
+        });
+        html += '</div>';
+    }
+
+    // 提取风险结论
+    const conclusionMatch = text.match(/【风险结论】([\s\S]*?)(?=【|$)/);
+    if (conclusionMatch) {
+        const conclusionText = conclusionMatch[1].trim();
+        html += `
+            <div class="risk-final-conclusion">
+                <div class="risk-final-title">📋 风险结论</div>
+                <div class="risk-final-text">${conclusionText}</div>
+            </div>
+        `;
+    }
+
+    // 如果什么都没解析到，直接当纯文本展示
+    if (!html) {
+        const escaped = text.replace(/\n/g, '<br>');
+        html = `<div class="risk-fallback-text">${escaped}</div>`;
+    }
+
+    return html;
 }
 
 function renderGubaData(container, data) {

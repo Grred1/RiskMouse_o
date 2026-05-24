@@ -3,7 +3,9 @@
 """
 from __future__ import annotations
 
+import json
 import math
+import re
 from datetime import datetime
 
 import akshare as ak
@@ -25,68 +27,7 @@ router = APIRouter(prefix="/api", tags=["风险挖掘"])
 
 # 加载提示词
 PROMPTS = load_prompts()
-RISK_ANALYSIS_PROMPT = """
-你是一位专业的证券风险分析师。请根据以下数据，对当前热门关注标的进行**全维度量化风险评估**。
-
-======== 股票基本信息 ========
-名称: {name}({code})
-关注来源: {source}
-所属行业: {industry}
-
-======== 主营构成（最新报告期） ========
-{zygc}
-
-======== 核心财务数据（最新报告期） ========
-{financial}
-
-======== 分析要求 ========
-请按以下维度逐一分析，每个维度给出 **风险评分（1-10分，1分最低风险，10分最高风险）**，最后汇总综合风险分。
-
-### 1️⃣ 基本面风险（权重30%）
-- 营收/利润增长趋势是否健康？
-- 毛利率、净利率水平如何？在行业中是否有竞争力？
-- 主营构成的集中度是否过高？（单一业务占比过大）
-- 盈利能力是否可持续？
-
-### 2️⃣ 财务健康风险（权重25%）
-- 资产负债率是否过高？
-- 现金流是否充裕？
-- ROE 水平是否合理？
-- 是否存在财务隐患？
-
-### 3️⃣ 市场情绪风险（权重20%）
-- 当前关注来源（涨停/龙虎榜）是否为短期炒作？
-- 股吧热门关键词反映的是什么逻辑？是否有基本面支撑？
-- 市场预期是否过于乐观/悲观？
-
-### 4️⃣ 估值风险（权重15%）
-- 当前估值（市盈率/市净率）处于什么水平？
-- 对比行业和自身历史，估值是否合理？
-
-### 5️⃣ 潜在暴雷风险（权重10%）
-- 是否存在可能引发股价大幅下跌的因素？
-- 大股东减持、监管问询、诉讼纠纷、商誉减值等风险信号？
-
-======== 输出格式 ========
-请严格按以下格式输出：
-
-【综合风险评分】X/10 分 —— 低风险/中低风险/中高风险/高风险
-
-【各维度评分】
-- 基本面风险: X/10 —— 评分理由简述
-- 财务健康风险: X/10 —— 评分理由简述
-- 市场情绪风险: X/10 —— 评分理由简述
-- 估值风险: X/10 —— 评分理由简述
-- 暴雷风险: X/10 —— 评分理由简述
-
-【核心风险点】
-列出1-3个最值得关注的风险点
-
-【风险结论】
-50字以内的综合判断
-
-请务必客观中立，不构成投资建议。
-"""
+ZT_RISK_PROMPT = PROMPTS.get("ZT_RISK_PROMPT", "")
 
 
 @router.get("/risk/pool")
@@ -180,11 +121,15 @@ def get_risk_pool(
 
 @router.post("/risk/analyze")
 def analyze_risk_stock(data: dict):
-    """AI 风险评分热门关注标的（含财务数据+量化评分）"""
+    """AI 风险评分热门关注标的（含财务数据+量化评分）
+    
+    新版本使用 ZT_RISK_PROMPT，返回 JSON 结构化评分。
+    """
     code = data.get("code", "")
     name = data.get("name", "")
     source = data.get("source", "")
     industry = data.get("industry", "")
+    board = data.get("board", 0)
 
     symbol = normalize_symbol(code)
     pure_code = extract_pure_code(symbol)
@@ -211,8 +156,8 @@ def analyze_risk_stock(data: dict):
     except Exception:
         zygc_text = "获取主营构成失败"
 
-    # 2. 获取财务摘要
-    financial_text = "暂无财务数据"
+    # 2. 获取财务摘要（作为 extra_info）
+    extra_info = "暂无财务数据"
     try:
         abstract_df = ak.stock_financial_abstract_ths(symbol=pure_code)
         if abstract_df is not None and not abstract_df.empty:
@@ -237,29 +182,154 @@ def analyze_risk_stock(data: dict):
                     if val is not None and str(val) not in ("", "--", "false", "False"):
                         lines.append(f"  {label}: {val}")
                 if lines:
-                    financial_text = "最新报告期:\n" + "\n".join(lines)
+                    extra_info = "近三年财务摘要:\n" + "\n".join(lines)
     except Exception:
         pass
 
-    prompt = RISK_ANALYSIS_PROMPT.format(
+    # 3. 获取股吧数据（作为 logic — 市场上涨逻辑）
+    logic = _fetch_guba_logic(pure_code, symbol)
+
+    # 4. 调用 LLM
+    prompt = ZT_RISK_PROMPT.format(
         name=name,
         code=code,
-        source=source,
+        board=board,
         industry=industry,
         zygc=zygc_text,
-        financial=financial_text,
+        logic=logic,
+        extra_info=extra_info,
     )
 
-    analysis = call_llm(prompt, max_tokens=800)
+    raw_analysis = call_llm(prompt, max_tokens=1000, temperature=0.3)
+
+    # 5. 尝试解析 JSON
+    scores = {}
+    overall_conclusion = ""
+    final_conclusion = raw_analysis
+    parse_ok = False
+
+    try:
+        json_str = _extract_json(raw_analysis)
+        if json_str:
+            parsed = json.loads(json_str)
+            scores = parsed.get("scores", {})
+            overall_conclusion = parsed.get("overall_conclusion", "")
+            final_conclusion = parsed.get("final_conclusion", raw_analysis)
+            parse_ok = True
+    except Exception:
+        pass
+
+    # 构建维度标签映射
+    dimension_labels = {
+        "logic_match": "逻辑匹配度",
+        "financial_health": "财务健康度",
+        "valuation_bubble": "估值泡沫度",
+        "capital_risk": "资金面风险",
+        "governance_risk": "公司治理风险",
+    }
+
+    # 将 scores 转为前端友好格式
+    score_list = []
+    for key, val in scores.items():
+        label = dimension_labels.get(key, key)
+        score_list.append({
+            "key": key,
+            "label": label,
+            "score": int(val),
+            "max": 5,
+        })
 
     return {
         "code": code,
         "name": name,
         "source": source,
-        "zygc": zygc_text,
-        "financial": financial_text,
-        "risk_analysis": analysis,
+        "board": board,
+        "parse_ok": parse_ok,
+        "overall_conclusion": overall_conclusion,
+        "scores": score_list,
+        "scores_raw": scores,
+        "final_conclusion": final_conclusion,
+        "risk_analysis": raw_analysis,
     }
+
+
+def _extract_json(text: str) -> str | None:
+    """从 LLM 回复中提取第一个 JSON 块（兼容 markdown 代码块）"""
+    # 先尝试去掉 ```json ... ``` 包裹
+    cleaned = re.sub(r'```(?:json)?\s*', '', text).strip()
+    start = cleaned.find("{")
+    end = cleaned.rfind("}")
+    if start >= 0 and end > start:
+        return cleaned[start:end + 1]
+    # 回退到原始文本
+    start = text.find("{")
+    end = text.rfind("}")
+    if start >= 0 and end > start:
+        return text[start:end + 1]
+    return None
+
+
+def _fetch_guba_logic(pure_code: str, symbol: str) -> str:
+    """获取股吧数据，组装成市场上涨逻辑文本"""
+    import requests as req
+
+    parts = []
+
+    # 1. 热门关键词
+    try:
+        df_kw = ak.stock_hot_keyword_em(symbol=symbol)
+        if df_kw is not None and not df_kw.empty:
+            kws = []
+            for _, row in df_kw.iterrows():
+                kws.append(f"{row.get('概念名称','')}(热度{row.get('热度',0)})")
+            if kws:
+                parts.append("股吧热门概念: " + ", ".join(kws[:8]))
+    except Exception:
+        pass
+
+    # 2. 爬取股吧帖子标题
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Referer": "https://guba.eastmoney.com/",
+        }
+        titles = []
+        for page in range(1, 3):
+            url = f"https://guba.eastmoney.com/list,{pure_code}_{page}.html"
+            r = req.get(url, headers=headers, timeout=8)
+            if r.status_code != 200:
+                break
+            found = re.findall(r'"post_title"\s*:\s*"([^"]+)"', r.text)
+            for t in found:
+                t = t.strip()
+                if len(t) > 4:
+                    titles.append(t)
+            if len(titles) >= 20:
+                break
+        if titles:
+            parts.append("股吧热帖标题: " + " | ".join(titles[:15]))
+    except Exception:
+        pass
+
+    # 3. 人气排名
+    try:
+        rank_data = {}
+        df_latest = ak.stock_hot_rank_latest_em(symbol=symbol)
+        if df_latest is not None and not df_latest.empty:
+            for _, row in df_latest.iterrows():
+                val = row["value"]
+                if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
+                    continue
+                rank_data[str(row["item"])] = str(val)
+        if rank_data:
+            parts.append(
+                f"人气排名第{rank_data.get('rank','?')}名"
+                f"（共{rank_data.get('marketAllCount','?')}只股票）"
+            )
+    except Exception:
+        pass
+
+    return "\n".join(parts) if parts else "暂未获取到股吧数据"
 
 
 def _zygc_summary(records: list) -> str:
