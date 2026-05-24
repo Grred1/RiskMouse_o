@@ -54,7 +54,6 @@ frontend_src = os.path.join(FRONTEND_DIR, "src")
 if os.path.exists(frontend_src):
     app.mount("/src", StaticFiles(directory=frontend_src), name="frontend_src")
 
-
 @app.on_event("startup")
 def startup():
     """应用启动时的初始化"""
@@ -63,8 +62,17 @@ def startup():
 
 
 @app.get("/")
-def index():
-    """首页"""
+def landing():
+    """着陆页"""
+    timeline_path = os.path.join(FRONTEND_DIR, "timeline.html")
+    if os.path.exists(timeline_path):
+        return FileResponse(timeline_path)
+    return {"message": "Landing page not found"}
+
+
+@app.get("/app")
+def app_index():
+    """平台主界面"""
     index_path = os.path.join(FRONTEND_DIR, "index.html")
     if os.path.exists(index_path):
         headers = {"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"}

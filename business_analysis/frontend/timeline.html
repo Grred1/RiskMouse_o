@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Risk Timeline</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        "Microsoft YaHei", sans-serif;
+      color: #1f2937;
+      background: #fbfaf5;
+      overflow-x: hidden;
+    }
+
+    body {
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 48% 14%, rgba(254, 243, 199, 0.82), transparent 34%),
+        radial-gradient(circle at 22% 66%, rgba(204, 251, 241, 0.48), transparent 30%),
+        radial-gradient(circle at 78% 56%, rgba(237, 233, 254, 0.66), transparent 29%),
+        radial-gradient(circle at 62% 78%, rgba(255, 228, 230, 0.48), transparent 30%),
+        linear-gradient(180deg, #fffdf8 0%, #fbfaf5 52%, #f5fbf7 100%);
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.28;
+      background-image:
+        linear-gradient(to right, rgba(148, 125, 104, 0.10) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(148, 125, 104, 0.08) 1px, transparent 1px);
+      background-size: 84px 84px;
+      z-index: 0;
+    }
+
+    body::after {
+      content: "";
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 360px;
+      pointer-events: none;
+      background: radial-gradient(circle at 50% 60%, rgba(204, 251, 241, 0.42), transparent 42%);
+      z-index: 0;
+    }
+
+    .page {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      padding: 40px 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .hero {
+      position: relative;
+      z-index: 20;
+      text-align: center;
+      max-width: 980px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border: 1px solid rgba(16, 185, 129, 0.28);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.58);
+      color: rgba(4, 120, 87, 0.72);
+      font-size: 10px;
+      letter-spacing: 0.34em;
+      text-transform: uppercase;
+      box-shadow: 0 2px 12px rgba(15, 118, 110, 0.06);
+      backdrop-filter: blur(18px);
+    }
+
+    .leaf {
+      width: 14px;
+      height: 14px;
+      display: inline-block;
+      border-radius: 999px 0 999px 999px;
+      background: linear-gradient(135deg, #5eead4, #10b981);
+      transform: rotate(-35deg);
+    }
+
+    h1 {
+      margin: 22px 0 0;
+      color: #064e3b;
+      font-size: clamp(48px, 7vw, 92px);
+      line-height: 0.95;
+      letter-spacing: -0.07em;
+      font-weight: 650;
+    }
+
+    .intro {
+      margin: 18px auto 0;
+      max-width: 780px;
+      color: #64748b;
+      font-size: 15px;
+      line-height: 1.75;
+    }
+
+    .try-btn {
+      margin-top: 24px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 11px 22px;
+      border: 1px solid rgba(251, 207, 232, 0.8);
+      border-radius: 999px;
+      background: linear-gradient(90deg, #fda4af, #c4b5fd, #5eead4);
+      color: white;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      cursor: pointer;
+      box-shadow: 0 12px 34px rgba(167, 139, 250, 0.22);
+      transition: transform 0.18s ease, filter 0.18s ease;
+    }
+
+    .try-btn:hover {
+      transform: translateY(-2px);
+      filter: brightness(1.04);
+    }
+
+    .timeline-shell {
+      position: relative;
+      width: 100%;
+      max-width: 1600px;
+      height: 720px;
+      margin-top: 4px;
+      cursor: grab;
+      user-select: none;
+    }
+
+    .timeline-shell:active {
+      cursor: grabbing;
+    }
+
+    .fade-left,
+    .fade-right {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 13%;
+      pointer-events: none;
+      z-index: 30;
+    }
+
+    .fade-left {
+      left: 0;
+      background: linear-gradient(to right, #fbfaf5, rgba(251, 250, 245, 0.86), transparent);
+    }
+
+    .fade-right {
+      right: 0;
+      background: linear-gradient(to left, #fbfaf5, rgba(251, 250, 245, 0.86), transparent);
+    }
+
+    .timeline-window {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 55%;
+      height: 630px;
+      transform: translateY(-50%);
+      overflow: hidden;
+    }
+
+    .timeline-track {
+      position: absolute;
+      left: 50%;
+      top: 0;
+      height: 100%;
+      will-change: transform;
+    }
+
+    .rail-svg {
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 630px;
+      pointer-events: none;
+      overflow: visible;
+    }
+
+    .endpoint,
+    .month,
+    .event {
+      position: absolute;
+    }
+
+    .endpoint {
+      z-index: 15;
+    }
+
+    .endpoint-dot {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 20px;
+      height: 20px;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.82);
+      border: 1px solid rgba(89, 132, 104, 0.24);
+      box-shadow: 0 0 18px rgba(94, 166, 116, 0.18);
+      backdrop-filter: blur(18px);
+    }
+
+    .endpoint.head .endpoint-dot {
+      border-color: rgba(74, 188, 132, 0.55);
+      box-shadow: 0 0 28px rgba(132, 205, 154, 0.45);
+    }
+
+    .endpoint-text {
+      position: absolute;
+      left: 0;
+      top: 104px;
+      transform: translateX(-50%);
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .endpoint-kicker {
+      font-size: 10px;
+      letter-spacing: 0.34em;
+      color: rgba(34, 197, 94, 0.7);
+      text-transform: uppercase;
+    }
+
+    .endpoint-label {
+      margin-top: 4px;
+      font-size: 12px;
+      font-weight: 650;
+      letter-spacing: 0.18em;
+      color: #64748b;
+    }
+
+    .endpoint.head .endpoint-label {
+      color: #047857;
+    }
+
+    .month {
+      z-index: 10;
+    }
+
+    .month-line {
+      position: absolute;
+      left: 0;
+      top: 42px;
+      width: 2px;
+      height: 48px;
+      transform: translateX(-50%);
+      border-radius: 999px;
+      background: rgba(100, 116, 139, 0.55);
+    }
+
+    .month-text {
+      position: absolute;
+      left: 0;
+      top: 98px;
+      transform: translateX(-50%);
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .month-short {
+      font-size: 10px;
+      letter-spacing: 0.32em;
+      color: rgba(34, 197, 94, 0.75);
+      text-transform: uppercase;
+    }
+
+    .month-label {
+      margin-top: 4px;
+      font-size: 14px;
+      font-weight: 650;
+      letter-spacing: 0.18em;
+      color: #475569;
+    }
+
+    .event {
+      z-index: 20;
+      width: 1px;
+      height: 1px;
+      transform: translateX(-50%);
+      border: 0;
+      padding: 0;
+      background: transparent;
+      cursor: pointer;
+      outline: none;
+    }
+
+    .event-node {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 16px;
+      height: 16px;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      border: 1px solid rgba(255, 255, 255, 0.85);
+      background: rgba(255, 255, 255, 0.96);
+      box-shadow: 0 0 22px var(--glow);
+      transition: transform 0.2s ease;
+    }
+
+    .event.selected .event-node {
+      transform: translate(-50%, -50%) scale(1.18);
+    }
+
+    .event-glow {
+      position: absolute;
+      left: 0;
+      transform: translateX(-50%);
+      width: 86px;
+      border-radius: 999px;
+      background: var(--glow);
+      filter: blur(26px);
+      opacity: 0.26;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+
+    .event.selected .event-glow {
+      opacity: 0.64;
+      transform: translateX(-50%) scale(1.18);
+    }
+
+    .pillar {
+      position: absolute;
+      left: 0;
+      bottom: 4px;
+      width: 13px;
+      transform: translateX(-50%);
+      overflow: hidden;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.85);
+      background: var(--fill);
+      box-shadow: 0 0 14px var(--glow), inset 0 1px 0 rgba(255, 255, 255, 0.62);
+      transition: transform 0.22s ease, box-shadow 0.22s ease;
+    }
+
+    .event:hover .pillar,
+    .event.selected .pillar {
+      transform: translateX(-50%) translateY(-4px) scaleY(1.05);
+      box-shadow: 0 0 30px var(--glow), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    }
+
+    .pillar::before {
+      content: "";
+      position: absolute;
+      left: 4px;
+      right: 4px;
+      top: 8px;
+      height: 42%;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.62);
+      filter: blur(4px);
+    }
+
+    .pillar::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 3px;
+      width: 1px;
+      background: rgba(255, 255, 255, 0.72);
+    }
+
+    .guide-svg {
+      position: absolute;
+      left: 0;
+      top: 0;
+      overflow: visible;
+      pointer-events: none;
+    }
+
+    .event-label {
+      position: absolute;
+      left: 0;
+      width: 138px;
+      transform: translateX(-50%);
+      text-align: center;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      opacity: 0.78;
+    }
+
+    .event.selected .event-label {
+      opacity: 1;
+      transform: translateX(-50%) translateY(-2px);
+    }
+
+    .event-main {
+      white-space: nowrap;
+      font-size: 13px;
+      line-height: 1.2;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      color: var(--text);
+    }
+
+    .event-sub {
+      margin-top: 4px;
+      white-space: nowrap;
+      font-size: 11px;
+      letter-spacing: 0.22em;
+      color: #64748b;
+      text-transform: uppercase;
+    }
+
+    .hint {
+      position: absolute;
+      left: 50%;
+      bottom: 32px;
+      z-index: 40;
+      transform: translateX(-50%);
+      padding: 8px 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(16, 185, 129, 0.28);
+      background: rgba(255, 255, 255, 0.58);
+      color: rgba(4, 120, 87, 0.62);
+      font-size: 10px;
+      letter-spacing: 0.26em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      box-shadow: 0 2px 12px rgba(15, 118, 110, 0.06);
+      backdrop-filter: blur(18px);
+    }
+
+    @media (max-width: 768px) {
+      .page {
+        padding: 32px 16px;
+      }
+
+      h1 {
+        font-size: 46px;
+      }
+
+      .intro {
+        font-size: 14px;
+      }
+
+      .timeline-shell {
+        height: 680px;
+      }
+
+      .hint {
+        max-width: 90%;
+        white-space: normal;
+        text-align: center;
+        line-height: 1.6;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <div class="eyebrow">
+        <span class="leaf"></span>
+        Risk Intelligence Platform
+      </div>
+
+      <h1>Are You Ahead of Risk?</h1>
+
+      <p class="intro">
+        一个面向金融风控的智能评估平台，聚合宏观政策、市场波动、财报舆情与行业事件，
+        自动识别风险等级、影响范围和持续时间，帮助用户提前捕捉潜在冲击。
+      </p>
+
+      <button class="try-btn" id="tryBtn" type="button">
+        Try Now
+        <span>→</span>
+      </button>
+    </header>
+
+    <section class="timeline-shell" id="timelineShell" aria-label="Macro risk timeline">
+      <div class="fade-left"></div>
+      <div class="fade-right"></div>
+
+      <div class="timeline-window">
+        <div class="timeline-track" id="timelineTrack"></div>
+      </div>
+
+      <div class="hint">Drag to explore · Timeline flows from 2025.12 tail to 2026.05 head</div>
+    </section>
+  </main>
+
+  <script>
+    const MONTH_GAP = 310;
+    const TIMELINE_END_X = MONTH_GAP * 5;
+    const LOOP_WIDTH = MONTH_GAP * 7.25;
+    const AUTO_SPEED = 60;
+    const BASE_SHIFT = LOOP_WIDTH + MONTH_GAP * 2.25;
+    const CURVE_BASE_Y = 350;
+    const CURVE_AMP = 42;
+    const TRACK_COPIES = [0, 1, 2, 3];
+
+    const months = [
+      { key: "2025-12", label: "2025.12", cn: "2025年12月", short: "DEC" },
+      { key: "2026-01", label: "2026.01", cn: "2026年1月", short: "JAN" },
+      { key: "2026-02", label: "2026.02", cn: "2026年2月", short: "FEB" },
+      { key: "2026-03", label: "2026.03", cn: "2026年3月", short: "MAR" },
+      { key: "2026-04", label: "2026.04", cn: "2026年4月", short: "APR" },
+      { key: "2026-05", label: "2026.05", cn: "2026年5月", short: "MAY" },
+    ];
+
+    const events = [
+      { id: "fed-path", label: "降息预期反复", title: "利率路径重估", monthPos: 0.32, level: "medium", height: 92, lane: 0 },
+      { id: "shipping-risk", label: "航运成本抬升", title: "供应链扰动", monthPos: 0.9, level: "high", height: 118, lane: 1 },
+      { id: "energy-shock", label: "油价波动加剧", title: "能源供给冲击", monthPos: 1.48, level: "high", height: 132, lane: 2 },
+      { id: "usd-liquidity", label: "美元流动性收紧", title: "汇率压力上行", monthPos: 2.02, level: "medium", height: 104, lane: 0 },
+      { id: "tech-crowding", label: "AI 交易拥挤", title: "科技估值压力", monthPos: 2.55, level: "high", height: 124, lane: 1 },
+      { id: "china-policy", label: "政策预期升温", title: "稳增长信号", monthPos: 3.08, level: "low", height: 86, lane: 2 },
+      { id: "earnings-season", label: "财报分化扩大", title: "盈利预期修正", monthPos: 3.62, level: "medium", height: 100, lane: 0 },
+      { id: "inflation-data", label: "通胀数据扰动", title: "CPI 超预期", monthPos: 4.13, level: "medium", height: 112, lane: 1 },
+      { id: "tariff-watch", label: "贸易摩擦升温", title: "关税不确定性", monthPos: 4.64, level: "high", height: 136, lane: 2 },
+    ];
+
+    const theme = {
+      high: {
+        core: "rgba(255,137,137,0.96)",
+        glow: "rgba(255,183,178,0.42)",
+        line: "rgba(255,137,137,0.36)",
+        fill: "rgba(255,166,158,0.72)",
+        text: "#f43f5e",
+      },
+      medium: {
+        core: "rgba(167,139,250,0.95)",
+        glow: "rgba(196,181,253,0.38)",
+        line: "rgba(167,139,250,0.32)",
+        fill: "rgba(196,181,253,0.68)",
+        text: "#8b5cf6",
+      },
+      low: {
+        core: "rgba(94,194,184,0.95)",
+        glow: "rgba(153,246,228,0.34)",
+        line: "rgba(94,194,184,0.3)",
+        fill: "rgba(125,211,252,0.56)",
+        text: "#14b8a6",
+      },
+    };
+
+    const shell = document.getElementById("timelineShell");
+    const track = document.getElementById("timelineTrack");
+    const tryBtn = document.getElementById("tryBtn");
+
+    let offset = 0;
+    let selectedId = "tariff-watch";
+    let isAutoPlaying = true;
+    let isDragging = false;
+    let dragStartX = 0;
+    let dragStartOffset = 0;
+    let lastTime = performance.now();
+
+    function xFromMonth(monthPos) {
+      return monthPos * MONTH_GAP;
+    }
+
+    function normalizeOffset(value) {
+      return ((value % LOOP_WIDTH) + LOOP_WIDTH) % LOOP_WIDTH;
+    }
+
+    function curveY(x) {
+      const t = ((x % LOOP_WIDTH) + LOOP_WIDTH) % LOOP_WIDTH;
+      const p = t / LOOP_WIDTH;
+      return (
+        CURVE_BASE_Y +
+        CURVE_AMP * Math.sin(p * Math.PI * 2.35 - 0.6) +
+        18 * Math.sin(p * Math.PI * 5.1 + 0.9)
+      );
+    }
+
+    function buildCurvePath(startX, endX, step = 14) {
+      const points = [];
+      for (let x = startX; x <= endX; x += step) {
+        const localX = ((x % LOOP_WIDTH) + LOOP_WIDTH) % LOOP_WIDTH;
+        points.push(x + "," + curveY(localX).toFixed(2));
+      }
+      return "M " + points.join(" L ");
+    }
+
+    function createSvg() {
+      const width = LOOP_WIDTH * 4;
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("class", "rail-svg");
+      svg.setAttribute("width", width);
+      svg.setAttribute("height", "630");
+      svg.setAttribute("viewBox", `0 0 ${width} 630`);
+      svg.setAttribute("preserveAspectRatio", "none");
+
+      svg.innerHTML = `
+        <defs>
+          <filter id="railGlow" x="-20%" y="-60%" width="140%" height="220%">
+            <feGaussianBlur stdDeviation="2.4" result="blur"></feGaussianBlur>
+            <feMerge>
+              <feMergeNode in="blur"></feMergeNode>
+              <feMergeNode in="SourceGraphic"></feMergeNode>
+            </feMerge>
+          </filter>
+
+          <marker id="arrowHead" markerWidth="20" markerHeight="20" refX="15" refY="6" orient="auto" markerUnits="strokeWidth">
+            <path d="M 0 0 L 15 6 L 0 12 z" fill="rgba(156,163,175,0.95)"></path>
+          </marker>
+        </defs>
+      `;
+
+      TRACK_COPIES.forEach((copy) => {
+        const startX = copy * LOOP_WIDTH;
+        const endX = startX + TIMELINE_END_X;
+        const d = buildCurvePath(startX, endX);
+
+        const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+
+        const p1 = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        p1.setAttribute("d", d);
+        p1.setAttribute("fill", "none");
+        p1.setAttribute("stroke", "rgba(156,163,175,0.16)");
+        p1.setAttribute("stroke-width", "7");
+        p1.setAttribute("filter", "url(#railGlow)");
+
+        const p2 = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        p2.setAttribute("d", d);
+        p2.setAttribute("fill", "none");
+        p2.setAttribute("stroke", "rgba(255,255,255,0.66)");
+        p2.setAttribute("stroke-width", "5.5");
+        p2.setAttribute("opacity", "0.62");
+
+        const p3 = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        p3.setAttribute("d", d);
+        p3.setAttribute("fill", "none");
+        p3.setAttribute("stroke", "rgba(156,163,175,0.95)");
+        p3.setAttribute("stroke-width", "4.2");
+        p3.setAttribute("stroke-linecap", "round");
+        p3.setAttribute("marker-end", "url(#arrowHead)");
+
+        const p4 = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        p4.setAttribute("d", d);
+        p4.setAttribute("fill", "none");
+        p4.setAttribute("stroke", "rgba(255,255,255,0.84)");
+        p4.setAttribute("stroke-width", "0.9");
+        p4.setAttribute("opacity", "0.68");
+
+        group.append(p1, p2, p3, p4);
+        svg.appendChild(group);
+      });
+
+      track.appendChild(svg);
+    }
+
+    function createEndpoint(type, label, x, y) {
+      const el = document.createElement("div");
+      el.className = `endpoint ${type}`;
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+      el.innerHTML = `
+        <div class="endpoint-dot"></div>
+        <div class="endpoint-text">
+          <div class="endpoint-kicker">${type === "head" ? "HEAD" : "TAIL"}</div>
+          <div class="endpoint-label">${label}</div>
+        </div>
+      `;
+      track.appendChild(el);
+    }
+
+    function createMonth(month, index, copy) {
+      const localX = index * MONTH_GAP;
+      const x = localX + copy * LOOP_WIDTH;
+      const y = curveY(localX);
+
+      const el = document.createElement("div");
+      el.className = "month";
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+      el.innerHTML = `
+        <div class="month-line"></div>
+        <div class="month-text">
+          <div class="month-short">${month.short}</div>
+          <div class="month-label">${month.label}</div>
+        </div>
+      `;
+      track.appendChild(el);
+    }
+
+    function createEvent(event, copy) {
+      const localX = xFromMonth(event.monthPos);
+      const x = localX + copy * LOOP_WIDTH;
+      const y = curveY(localX);
+      const style = theme[event.level];
+      const labelBands = [-170, -218, -266];
+      const labelY = labelBands[event.lane];
+      const lineStartY = -event.height - 8;
+      const lineEndY = labelY + 46;
+
+      const el = document.createElement("button");
+      el.type = "button";
+      el.className = "event";
+      el.dataset.eventId = event.id;
+      el.setAttribute("aria-label", event.title);
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+      el.style.setProperty("--core", style.core);
+      el.style.setProperty("--glow", style.glow);
+      el.style.setProperty("--line", style.line);
+      el.style.setProperty("--fill", style.fill);
+      el.style.setProperty("--text", style.text);
+
+      el.innerHTML = `
+        <div class="event-node"></div>
+        <div class="event-glow" style="top: ${-event.height - 6}px; height: ${event.height * 0.74}px;"></div>
+        <div class="pillar" style="height: ${event.height}px;"></div>
+        <svg class="guide-svg" width="1" height="1" viewBox="0 0 1 1">
+          <path d="M 0 ${lineStartY} L 0 ${lineEndY}" fill="none" stroke="${style.line}" stroke-width="1" opacity="0.88"></path>
+          <circle cx="0" cy="${lineEndY}" r="2.4" fill="${style.core}" opacity="0.88"></circle>
+        </svg>
+        <div class="event-label" style="top: ${labelY}px;">
+          <div class="event-main">${event.label}</div>
+          <div class="event-sub">${event.title}</div>
+        </div>
+      `;
+
+      el.addEventListener("click", (eventObj) => {
+        eventObj.stopPropagation();
+        selectedId = event.id;
+        updateSelected();
+      });
+
+      track.appendChild(el);
+    }
+
+    function updateSelected() {
+      document.querySelectorAll(".event").forEach((el) => {
+        el.classList.toggle("selected", el.dataset.eventId === selectedId);
+      });
+    }
+
+    function renderTimeline() {
+      track.style.width = `${LOOP_WIDTH * 4}px`;
+      createSvg();
+
+      TRACK_COPIES.forEach((copy) => {
+        createEndpoint("tail", "2025年12月", copy * LOOP_WIDTH, curveY(0));
+        createEndpoint("head", "2026年5月", copy * LOOP_WIDTH + TIMELINE_END_X, curveY(TIMELINE_END_X));
+
+        months.slice(1, -1).forEach((month, index) => {
+          createMonth(month, index + 1, copy);
+        });
+
+        events.forEach((event) => {
+          createEvent(event, copy);
+        });
+      });
+
+      updateSelected();
+    }
+
+    function setTrackTransform() {
+      track.style.transform = `translateX(${offset - BASE_SHIFT}px)`;
+    }
+
+    function animate(now) {
+      const delta = now - lastTime;
+      lastTime = now;
+
+      if (isAutoPlaying && !isDragging) {
+        offset = normalizeOffset(offset + (delta / 1000) * AUTO_SPEED);
+        setTrackTransform();
+      }
+
+      requestAnimationFrame(animate);
+    }
+
+    function startDrag(event) {
+      isDragging = true;
+      isAutoPlaying = false;
+      dragStartX = event.clientX;
+      dragStartOffset = offset;
+      shell.setPointerCapture?.(event.pointerId);
+    }
+
+    function moveDrag(event) {
+      if (!isDragging) return;
+      const delta = event.clientX - dragStartX;
+      offset = normalizeOffset(dragStartOffset + delta);
+      setTrackTransform();
+    }
+
+    function endDrag() {
+      isDragging = false;
+    }
+
+    shell.addEventListener("pointerdown", startDrag);
+    shell.addEventListener("pointermove", moveDrag);
+    shell.addEventListener("pointerup", endDrag);
+    shell.addEventListener("pointercancel", endDrag);
+    shell.addEventListener("pointerleave", endDrag);
+
+    shell.addEventListener("wheel", (event) => {
+      isAutoPlaying = false;
+      offset = normalizeOffset(offset - event.deltaY * 0.72);
+      setTrackTransform();
+    }, { passive: true });
+
+    tryBtn.addEventListener("click", () => {
+      window.location.href = '/app';
+    });
+
+    renderTimeline();
+    setTrackTransform();
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
