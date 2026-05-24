@@ -19,9 +19,9 @@
 ## 目录结构
 
 ```
-business_analysis/
 ├── frontend/                        # 前端静态文件
-│   ├── index.html                   # 单页应用入口
+│   ├── index.html                   # 单页应用入口（平台主界面）
+│   ├── timeline.html                # 着陆页
 │   └── src/
 │       ├── js/
 │       │   ├── common.js            # 通用工具函数
@@ -49,7 +49,7 @@ business_analysis/
 │   │   ├── risk_engine.py           # 纯算法风险评分引擎（无需 AI）
 │   │   ├── api/
 │   │   │   ├── finance.py           # 财报风险 API（主营构成、利润表/资产负债表/现金流、AI 分析）
-│   │   │   ├── sentiment.py         # 风险挖掘 API（涨停池 + 龙虎榜 + AI 五维评分）
+│   │   │   ├── sentiment.py         # 风险挖掘 API（涨停池 + 龙虎榜 + AI 结构化评分）
 │   │   │   ├── watchlist.py         # 自选风控 API（CRUD、四维评分、词云、新闻、截图OCR、风险日记）
 │   │   │   └── mouse_agent.py       # 小老鼠 Agent API（聊天、网上冲浪、通知、邮件、RAG、定时巡检）
 │   │   └── core/
@@ -58,26 +58,25 @@ business_analysis/
 │   │       ├── coze_agent.py        # Coze Stream Agent 调用封装 + 新闻真伪鉴定
 │   │       ├── cache_rag.py         # 本地缓存 RAG 引擎（扫描 cache/ JSON → 内存知识库）
 │   │       └── usage_doc.py         # 使用文档（供小老鼠 Agent 回复用户功能问题时引用）
-│   ├── prompts/                     # AI Prompt 模板
-│   │   ├── zygc_analysis.txt        # 主营构成 AI 分析
-│   │   ├── financial_combined.txt   # 财务健康+增长综合分析
-│   │   ├── zt_risk.txt              # 涨停/龙虎榜风险分析
-│   │   ├── watchlist_risk.txt       # 自选股 AI 解读
-│   │   ├── narrative_extract.txt    # 叙事实体提取
-│   │   └── narrative_verify.txt     # 叙事真伪验证
-│   └── requirements.txt
+│   └── prompts/                     # AI Prompt 模板
+│       ├── zygc_analysis.txt        # 主营构成 AI 分析
+│       ├── financial_combined.txt   # 财务健康+增长综合分析
+│       ├── zt_risk.txt              # 涨停/龙虎榜风险分析
+│       ├── watchlist_risk.txt       # 自选股 AI 解读
+│       ├── narrative_extract.txt    # 叙事实体提取
+│       └── narrative_verify.txt     # 叙事真伪验证
 │
 ├── scripts/
 │   ├── coze-preview-build.sh
 │   └── coze-preview-run.sh
 │
-├── cache/                           # 数据缓存自动生成目录
-│   ├── stock_names.json             # A 股全量股票名称词典
-│   └── ai/                          # AI 分析结果缓存
-│
-├── 版本修改.md                      # 变更日志
-
-└── .env                             # 环境变量（DeepSeek/Coze Key 等，不提交版本库）
+├── requirements.txt                 # Python 依赖
+├── .env.example                     # 环境变量示例
+├── start.sh                         # 一键启动脚本
+├── .gitignore
+├── AGENTS.md                        # 项目文档
+├── README.md                        # 项目说明
+└── 版本修改.md                      # 变更日志
 ```
 
 ## 核心功能模块
@@ -138,24 +137,25 @@ business_analysis/
 ## 启动方式
 
 ```bash
-# 1. 安装依赖
-cd business_analysis
-pip install -r backend/requirements.txt
+# 方式一：一键启动（推荐）
+bash start.sh          # 默认端口 8787
+bash start.sh 5000    # 或指定端口
 
-# 2. 配置环境变量（.env 文件）
-# LLM_PROVIDER=deepseek
-# DEEPSEEK_API_KEY=your_key_here
-
-# 3. 开发模式启动
-uvicorn backend.app.main:app --reload --port 5000
-
-# 4. 或使用脚本
-bash scripts/coze-preview-run.sh
+# 方式二：手动启动
+cd /path/to/Fengkong
+source .venv/bin/activate        # 激活虚拟环境
+cp .env.example .env             # 首次需配置环境变量
+pip install -r requirements.txt  # 首次需安装依赖
+uvicorn backend.app.main:app --reload --port 8787
 ```
+
+服务启动后访问:
+- 着陆页: http://localhost:8787
+- 平台主界面: http://localhost:8787/app
 
 ## 架构要点
 
-- **后端入口**: `backend.app.main:app`，FastAPI 应用自动挂载 `frontend/` 为静态文件目录
+- **后端入口**: `backend.app.main:app`，FastAPI 应用从项目根目录启动（`uvicorn backend.app.main:app`）
 - **缓存机制**: 数据缓存 `cache/` 目录自动生成，AI 分析结果缓存避免重复调用 LLM
 - **缓存控制**: HTML 响应加 `Cache-Control: no-cache` 头，JS/CSS 通过 `?v=N` 版本号控制缓存更新
 - **本地 RAG**: `cache_rag.py` 自动索引 `cache/` 下所有 JSON 文件，供小老鼠 Agent 闲聊时检索

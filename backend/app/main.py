@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 # 加载 .env（本地开发用）
 try:
     from dotenv import load_dotenv
-    load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", ".env"), override=True, encoding="utf-8")
+    load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".env"), override=True, encoding="utf-8")
 except ImportError:
     pass
 
