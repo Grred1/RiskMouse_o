@@ -17,7 +17,7 @@
   position: relative;
   width: 140px;
   height: 160px;
-  cursor: pointer;
+  cursor: grab;
   transition: transform 0.2s;
   user-select: none;
 }
@@ -26,6 +26,11 @@
 }
 .ma-character:active {
   transform: scale(0.95);
+}
+.ma-wrapper.dragging .ma-character {
+  cursor: grabbing;
+  transform: scale(1.03);
+  transition: none;
 }
 
 /* 使用图片作为宠物形象 */

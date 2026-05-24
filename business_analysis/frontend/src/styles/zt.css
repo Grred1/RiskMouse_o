@@ -1,203 +1,256 @@
+/* ══ 挖掘页整体网格（适配视口） ══ */
+.risk-page-grid {
+    display: grid;
+    grid-template-columns: 400px 1fr;
+    gap: 20px;
+    height: 100%;
+}
+
+/* ══ 工具栏 ══ */
 .zt-toolbar {
     display: flex;
     gap: 12px;
     align-items: center;
     flex-wrap: wrap;
-    background: #fff;
-    padding: 12px 16px;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-    margin-bottom: 16px;
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.62);
+    padding: 11px 16px;
+    border-radius: 14px;
+    box-shadow: 0 4px 16px rgba(31, 58, 93, 0.08);
+    margin-bottom: 14px;
+    flex-shrink: 0;
 }
-.zt-toolbar label {
-    font-size: 14px;
-    font-weight: 600;
-    color: #555;
-}
+.zt-toolbar label { font-size: 13px; font-weight: 600; color: #4a6080; }
 .zt-toolbar input[type="date"] {
-    padding: 8px 12px;
-    border: 1px solid #d0d7e0;
-    border-radius: 6px;
-    font-size: 14px;
+    padding: 7px 11px;
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    border-radius: 8px;
+    font-size: 13px;
     outline: none;
+    background: rgba(255, 255, 255, 0.88);
+    color: #1e3252;
 }
 .zt-toolbar button {
-    padding: 8px 24px;
-    background: #c0392b;
+    padding: 7px 22px;
+    background: linear-gradient(135deg, #4f8fdc, #3578c9);
     color: #fff;
     border: none;
-    border-radius: 8px;
-    font-size: 14px;
+    border-radius: 20px;
+    font-size: 13px;
     cursor: pointer;
     font-weight: 600;
+    box-shadow: 0 3px 10px rgba(79, 143, 220, 0.28);
+    transition: all .2s;
 }
-.zt-toolbar button:hover { background: #e74c3c; }
-.zt-toolbar button:disabled { background: #999; cursor: not-allowed; }
-.zt-toolbar .zt-summary {
-    font-size: 14px;
-    color: #555;
-    font-weight: 500;
-}
+.zt-toolbar button:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(79,143,220,.38); }
+.zt-toolbar button:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+.zt-toolbar .zt-summary { font-size: 13px; color: #4a6080; font-weight: 500; }
 
+/* ══ 错误提示 ══ */
 .zt-error {
-    background: #fff0f0;
-    color: #c0392b;
-    padding: 12px 16px;
-    border-radius: 8px;
-    margin-bottom: 16px;
-    border: 1px solid #f5c6cb;
+    background: rgba(239, 68, 68, 0.08);
+    color: #991b1b;
+    padding: 10px 14px;
+    border-radius: 10px;
+    margin-bottom: 14px;
+    border: 1px solid rgba(239, 68, 68, 0.22);
     display: none;
-}
-
-.row-multi { background: #fff5f5; }
-.row-multi:hover td { background: #ffe8e8 !important; }
-
-/* 两栏布局 */
-.risk-container {
-    display: flex;
-    gap: 16px;
-    min-height: 500px;
-}
-
-.risk-left {
-    width: 280px;
+    font-size: 13px;
     flex-shrink: 0;
+}
+
+.row-multi { background: rgba(239, 68, 68, 0.04); }
+.row-multi:hover td { background: rgba(239, 68, 68, 0.08) !important; }
+
+/* ══ 左栏：列表面板 ══ */
+.risk-page-grid > div:first-child {
     display: flex;
     flex-direction: column;
+    min-height: 0;
 }
 
-.risk-right {
-    flex: 1;
-    min-width: 0;
-}
-
-/* 列表容器 */
 .risk-list-box {
-    background: #fff;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.62);
+    border-radius: 20px;
+    box-shadow: 0 8px 32px rgba(31, 58, 93, 0.12),
+                inset 0 1px 0 rgba(255,255,255,.55);
     flex: 1;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    min-height: 0;
 }
-
 .risk-list-header {
-    padding: 12px 16px;
-    border-bottom: 1px solid #eee;
-    font-weight: 600;
-    color: #333;
+    padding: 13px 16px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+    font-weight: 700;
+    font-size: 13px;
+    color: #1e3252;
+    flex-shrink: 0;
 }
-
 .risk-list-body {
     flex: 1;
     overflow-y: auto;
-    max-height: 480px;
+    min-height: 0;
 }
 
-/* 筛选器 */
+/* ══ 筛选器 ══ */
 .zt-filters {
     display: flex;
     gap: 8px;
     padding: 8px 12px;
-    background: #f8f9fa;
-    border-bottom: 1px solid #eee;
+    background: rgba(248, 250, 252, 0.50);
+    border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+    flex-shrink: 0;
 }
-
-.zt-filters select {
-    padding: 6px 10px;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    font-size: 13px;
+.zt-filters select,
+.zt-filters-select {
+    padding: 5px 9px;
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    border-radius: 8px;
+    font-size: 12px;
     outline: none;
+    background: rgba(255, 255, 255, 0.88);
+    color: #1e3252;
     flex: 1;
+    margin-right: 8px;
 }
 
-/* 表格 */
+/* ══ 挖掘列表表格 ══ */
 .zt-table {
     width: 100%;
-    border-collapse: collapse;
-    font-size: 14px;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 12px;
 }
-
 .zt-table th {
-    background: #f8f9fa;
-    padding: 10px 12px;
+    background: rgba(248, 250, 252, 0.70);
+    padding: 9px 12px;
     text-align: left;
     font-weight: 600;
-    color: #555;
-    border-bottom: 1px solid #eee;
+    color: #8fa3b8;
+    font-size: 11px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.18);
     position: sticky;
     top: 0;
+    z-index: 1;
 }
-
 .zt-table td {
-    padding: 10px 12px;
-    border-bottom: 1px solid #f0f0f0;
+    padding: 9px 12px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+    color: #4a6080;
 }
-
-.zt-row {
-    cursor: pointer;
-    transition: background 0.15s;
-}
-
-.zt-row:hover td {
-    background: #fdf2f2;
-}
-
-.zt-row.active td {
-    background: #fff0f0;
-}
-
+.zt-table tr:last-child td { border-bottom: none; }
+.zt-row { cursor: pointer; transition: background .15s; }
+.zt-row:hover td { background: rgba(79, 143, 220, 0.05); color: #1e3252; }
+.zt-row.active td { background: rgba(79, 143, 220, 0.08); color: #1e3252; }
 .zt-row.active td:first-child::before {
     content: '▶';
     margin-right: 4px;
-    color: #c0392b;
+    color: #4f8fdc;
     font-size: 10px;
 }
 
-/* 详情面板 */
+/* ══ 右栏：详情面板 ══ */
 .zt-detail-panel {
-    background: #fff;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-    min-height: 400px;
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.62);
+    border-radius: 20px;
+    box-shadow: 0 8px 32px rgba(31, 58, 93, 0.12),
+                inset 0 1px 0 rgba(255,255,255,.55);
+    height: 100%;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
 }
-
-.zt-detail-header {
-    padding: 16px 20px;
-    border-bottom: 1px solid #eee;
-    font-size: 18px;
-    font-weight: 600;
-    color: #333;
-}
-
 .zt-detail-loading {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 12px;
     padding: 60px 20px;
-    color: #999;
+    color: #8fa3b8;
+    font-size: 13px;
+    flex: 1;
 }
-
 .zt-detail-loading::after {
     content: '';
-    width: 20px;
-    height: 20px;
-    border: 2px solid #ddd;
-    border-top-color: #c0392b;
+    width: 22px; height: 22px;
+    border: 2.5px solid rgba(79, 143, 220, 0.15);
+    border-top-color: #4f8fdc;
     border-radius: 50%;
-    animation: spin 0.8s linear infinite;
+    animation: zt-spin .8s linear infinite;
+}
+@keyframes zt-spin { to { transform: rotate(360deg); } }
+
+.zt-detail-content { padding: 16px 18px; }
+
+/* ══ 详情标题 ══ */
+#ztDetailHeader {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1e3252 !important;
+    margin-bottom: 14px;
 }
 
-@keyframes spin {
-    to { transform: rotate(360deg); }
+/* ══ 信息块（市场关注点 / 主营构成） ══ */
+.zt-info-block {
+    background: rgba(248, 250, 252, 0.70);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+}
+.zt-info-block summary {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1e3252;
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.zt-info-block summary::before {
+    content: '▶';
+    font-size: 10px;
+    color: #4f8fdc;
+    transition: transform .2s;
+}
+.zt-info-block[open] summary::before { transform: rotate(90deg); }
+
+/* ══ AI 评估块 ══ */
+.zt-ai-block {
+    background: rgba(79, 143, 220, 0.06);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(79, 143, 220, 0.22);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-top: 8px;
 }
 
-.zt-detail-content {
-    padding: 16px 20px;
+/* ══ 块内标题 ══ */
+.zt-block-title {
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 9px;
+    color: #1e3252;
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
+.zt-ai-title { color: #3578c9; }
 
 /* ── AI 风险评估区域 ─────────────────────────────── */
 
@@ -464,31 +517,54 @@
     line-height: 1.7;
     color: #444;
     white-space: pre-wrap;
-    background: #fafafa;
-    padding: 12px;
-    border-radius: 8px;
+}
+.zt-block-body.zygc {
+    max-height: 200px;
+    margin-top: 8px;
 }
 
-.zt-section-content.zygc {
-    background: #f0f7ff;
-    border: 1px solid #d0e3ff;
-}
-
-/* 标签 */
+/* ══ 标签 ══ */
 .zt-tag {
     display: inline-block;
-    padding: 2px 8px;
+    padding: 2px 9px;
     border-radius: 10px;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
 }
-
 .zt-tag-purple {
-    background: #f3e8ff;
-    color: #7c3aed;
+    background: rgba(139, 92, 246, 0.10);
+    color: #6d28d9;
+    border: 1px solid rgba(139, 92, 246, 0.22);
+}
+.zt-tag-orange {
+    background: rgba(249, 115, 22, 0.10);
+    color: #c2410c;
+    border: 1px solid rgba(249, 115, 22, 0.22);
 }
 
-.zt-tag-orange {
-    background: #fff7ed;
-    color: #ea580c;
+/* ══ 旧 zt-section-* 兼容（risk.js 可能动态生成） ══ */
+.zt-section { margin-bottom: 16px; }
+.zt-section-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #8fa3b8;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+}
+.zt-section-content {
+    font-size: 13px;
+    line-height: 1.75;
+    color: #4a6080;
+    white-space: pre-wrap;
+    background: rgba(248, 250, 252, 0.65);
+    padding: 11px 13px;
+    border-radius: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.12);
+}
+.zt-section-content.zygc {
+    background: rgba(79, 143, 220, 0.06);
+    border-color: rgba(79, 143, 220, 0.18);
 }

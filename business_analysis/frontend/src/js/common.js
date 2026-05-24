@@ -16,8 +16,15 @@ function fmtNum(val) {
 }
 
 function switchFeature(feature) {
+    // nav-tabs 已移除，以下保留向后兼容
     document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
-    document.querySelector(`.nav-tab[data-feature="${feature}"]`).classList.add('active');
+    const navTab = document.querySelector(`.nav-tab[data-feature="${feature}"]`);
+    if (navTab) navTab.classList.add('active');
     document.querySelectorAll('.feature-section').forEach(el => el.classList.remove('active'));
-    document.getElementById(`feature-${feature}`).classList.add('active');
+    const section = document.getElementById(`feature-${feature}`);
+    if (section) section.classList.add('active');
+    // 同步侧边栏激活状态
+    document.querySelectorAll('.sidebar-btn').forEach(el => el.classList.remove('active'));
+    const sid = document.getElementById('sidebar' + feature.charAt(0).toUpperCase() + feature.slice(1));
+    if (sid) sid.classList.add('active');
 }

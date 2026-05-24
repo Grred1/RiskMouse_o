@@ -16,6 +16,8 @@ class MouseAssistant extends HTMLElement {
     this._screen = "🖥️ 准备就绪，点击我聊天～";
     this._notifications = [];
     this._pollTimer = null;
+    this._dragging = false;
+    this._didDrag = false;
   }
 
   connectedCallback() {
@@ -78,6 +80,7 @@ class MouseAssistant extends HTMLElement {
 
   bindEvents() {
     this.$("#ma-character").addEventListener("click", (e) => {
+      if (this._didDrag) { this._didDrag = false; return; }
       if (e.target.closest(".ma-bubble")) {
         this.toggleNotifPanel();
         return;
@@ -96,6 +99,54 @@ class MouseAssistant extends HTMLElement {
       this._notifications = [];
       this.updateNotifPanel();
       this.updateBubble();
+    });
+
+    this.bindDrag();
+  }
+
+  bindDrag() {
+    const wrapper = this.querySelector(".ma-wrapper");
+    const handle = this.$("#ma-character");
+    let startX, startY, startLeft, startTop;
+
+    const onMouseMove = (e) => {
+      if (!this._dragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) this._didDrag = true;
+      const newLeft = Math.max(0, Math.min(window.innerWidth  - wrapper.offsetWidth,  startLeft + dx));
+      const newTop  = Math.max(0, Math.min(window.innerHeight - wrapper.offsetHeight, startTop  + dy));
+      wrapper.style.left = newLeft + "px";
+      wrapper.style.top  = newTop  + "px";
+    };
+
+    const onMouseUp = () => {
+      if (!this._dragging) return;
+      this._dragging = false;
+      wrapper.classList.remove("dragging");
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+    };
+
+    handle.addEventListener("mousedown", (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      this._dragging = true;
+      this._didDrag  = false;
+      wrapper.classList.add("dragging");
+
+      const rect = wrapper.getBoundingClientRect();
+      startLeft = rect.left;
+      startTop  = rect.top;
+      wrapper.style.left   = startLeft + "px";
+      wrapper.style.top    = startTop  + "px";
+      wrapper.style.right  = "auto";
+      wrapper.style.bottom = "auto";
+      startX = e.clientX;
+      startY = e.clientY;
+
+      document.addEventListener("mousemove", onMouseMove);
+      document.addEventListener("mouseup",   onMouseUp);
     });
   }
 
