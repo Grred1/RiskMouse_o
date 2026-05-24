@@ -8,7 +8,11 @@ import os
 from datetime import datetime
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "watchlist.db")
+# 部署环境使用当前工作目录（可写），本地开发保持原路径
+if os.getenv("COZE_ENV") or os.getenv("PORT"):
+    DB_PATH = os.path.join(os.getcwd(), "watchlist.db")
+else:
+    DB_PATH = os.path.join(BASE_DIR, "watchlist.db")
 
 MAX_WATCHLIST = 10  # 自选股上限
 

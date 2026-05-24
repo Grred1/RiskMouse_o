@@ -18,8 +18,11 @@ APP_DIR = os.path.dirname(CORE_DIR)          # backend/app/
 BACKEND_DIR = os.path.dirname(APP_DIR)       # backend/
 PROJECT_ROOT = os.path.dirname(BACKEND_DIR)  # business_analysis/
 
-# 缓存目录（统一放在项目根目录下）
-CACHE_DIR = os.path.join(PROJECT_ROOT, "cache")
+# 缓存目录：部署环境使用当前工作目录（可写），本地开发保持原路径
+if os.getenv("COZE_ENV") or os.getenv("PORT"):
+    CACHE_DIR = os.path.join(os.getcwd(), "cache")
+else:
+    CACHE_DIR = os.path.join(PROJECT_ROOT, "cache")
 os.makedirs(CACHE_DIR, exist_ok=True)
 
 AI_CACHE_DIR = os.path.join(CACHE_DIR, "ai")
