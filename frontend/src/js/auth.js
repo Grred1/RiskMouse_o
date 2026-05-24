@@ -6,39 +6,38 @@ function getAuthHeaders() {
     return headers;
 }
 
-// ── header 登录状态管理 ──────────────────────────────────────
+// ── 侧栏登录状态管理 ─────────────────────────────────────────
 (function() {
-    const usernameEl = document.getElementById('headerUsername');
-    const logoutBtn  = document.getElementById('headerLogoutBtn');
-    const loginBtn   = document.getElementById('headerLoginBtn');
+    const authBtn   = document.getElementById('sidebarAuthBtn');
+    const authIcon  = document.getElementById('sidebarAuthIcon');
+    const authLabel = document.getElementById('sidebarAuthLabel');
 
     function updateUI() {
         const t = localStorage.getItem('token');
         const u = localStorage.getItem('user');
         if (t && u) {
-            if (usernameEl) { usernameEl.textContent = u; usernameEl.style.display = ''; }
-            if (logoutBtn)  logoutBtn.style.display = '';
-            if (loginBtn)   loginBtn.style.display = 'none';
+            if (authIcon)  authIcon.textContent  = u.charAt(0).toUpperCase();
+            if (authLabel) authLabel.textContent = '退出';
+            if (authBtn)   authBtn.classList.add('logged-in');
         } else {
-            if (usernameEl) usernameEl.style.display = 'none';
-            if (logoutBtn)  logoutBtn.style.display = 'none';
-            if (loginBtn)   loginBtn.style.display = '';
+            if (authIcon)  authIcon.textContent  = '👤';
+            if (authLabel) authLabel.textContent = '登录';
+            if (authBtn)   authBtn.classList.remove('logged-in');
         }
     }
 
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', () => {
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            updateUI();
-            location.reload();
-        });
-    }
-
-    if (loginBtn) {
-        loginBtn.addEventListener('click', () => {
-            const modal = document.getElementById('authModal');
-            if (modal) modal.classList.add('active');
+    if (authBtn) {
+        authBtn.addEventListener('click', () => {
+            const t = localStorage.getItem('token');
+            if (t) {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                updateUI();
+                location.reload();
+            } else {
+                const modal = document.getElementById('authModal');
+                if (modal) modal.classList.add('active');
+            }
         });
     }
 

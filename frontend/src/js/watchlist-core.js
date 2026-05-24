@@ -87,7 +87,7 @@ function renderWatchlistGrid() {
             slots.push(`<div class="saved-card saved-card-empty">
                 <div class="saved-card-empty-inner">
                     <span class="saved-card-empty-icon">+</span>
-                    <span class="saved-card-empty-hint">添加自选</span>
+                    <span class="saved-card-empty-hint">下方添加</span>
                 </div>
             </div>`);
         } else {

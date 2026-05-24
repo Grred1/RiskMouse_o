@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>智能风控评测平台</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
-    <link rel="stylesheet" href="src/styles/common.css?v=26">
+    <link rel="stylesheet" href="src/styles/common.css?v=27">
     <link rel="stylesheet" href="src/styles/finance.css?v=7">
     <link rel="stylesheet" href="src/styles/zt.css?v=7">
     <link rel="stylesheet" href="src/styles/watchlist.css?v=14">
@@ -38,7 +38,10 @@
         <span class="sidebar-btn-icon">📰</span>
         <span class="sidebar-btn-label">挖掘</span>
     </button>
-    <div class="sidebar-avatar">👤</div>
+    <button class="sidebar-btn sidebar-auth-btn" id="sidebarAuthBtn" title="登录/退出">
+        <span class="sidebar-btn-icon" id="sidebarAuthIcon">👤</span>
+        <span class="sidebar-btn-label" id="sidebarAuthLabel">登录</span>
+    </button>
 </div>
 
 <!-- ── 顶部 Header（无 nav-tabs） ── -->
@@ -52,13 +55,6 @@
         <div class="cyber-header-title">
             <h1>智能风控评测平台</h1>
             <div class="cyber-subtitle">INTELLIGENT RISK INTELLIGENCE DASHBOARD</div>
-        </div>
-        <div class="cyber-header-right">
-            <div class="header-auth" id="headerAuth">
-                <span class="header-username" id="headerUsername" style="display:none;"></span>
-                <button class="header-logout-btn" id="headerLogoutBtn" style="display:none;">退出</button>
-                <button class="header-login-btn" id="headerLoginBtn">登录</button>
-            </div>
         </div>
     </div>
 </div>
@@ -280,7 +276,7 @@
                     <div class="assess-status" id="assessStatus"></div>
                     <div class="saved-grid" id="savedGrid">
                         <div class="saved-card saved-card-empty" style="grid-column:1/-1;">
-                            <div class="saved-card-empty-inner"><span class="saved-card-empty-icon">+</span><span class="saved-card-empty-hint">添加自选</span></div>
+                            <div class="saved-card-empty-inner"><span class="saved-card-empty-icon">+</span><span class="saved-card-empty-hint">下方添加</span></div>
                         </div>
                     </div>
                 </div>
@@ -466,7 +462,7 @@
 <script src="src/js/risk-analysis.js?v=6"></script>
 <script src="src/js/macro.js?v=11"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-<script src="src/js/watchlist-core.js?v=8"></script>
+<script src="src/js/watchlist-core.js?v=9"></script>
 <script src="src/js/watchlist-analysis.js?v=7"></script>
 <script src="src/js/watchlist-diary.js?v=7"></script>
 
@@ -491,7 +487,7 @@
   </div>
 </div>
 
-<script src="src/js/auth.js?v=1"></script>
+<script src="src/js/auth.js?v=2"></script>
   <link rel="stylesheet" href="src/styles/mouse-agent.css?v=7">
   <script src="src/js/mouse-agent.js?v=6"></script>
   <mouse-assistant></mouse-assistant>

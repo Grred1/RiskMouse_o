@@ -451,8 +451,6 @@ table tr:hover td { background: rgba(79, 143, 220, 0.05); color: #1e3252; }
 
 /* ══ 响应式：768px 及以下 ══ */
 @media (max-width: 768px) {
-  .sidebar-avatar { display: none; }
-
   .sidebar-logo { display: flex; width: 36px; height: 36px; font-size: 16px; margin-bottom: 8px; }
   .sidebar-divider { display: block; width: 50%; margin: 4px auto 8px; }
 
@@ -480,8 +478,6 @@ table tr:hover td { background: rgba(79, 143, 220, 0.05); color: #1e3252; }
   }
   .cyber-market-status #cyberClock { font-size: 10px !important; }
   .cyber-status-dot { width: 5px; height: 5px; }
-  .cyber-header-right { display: none; }
-
   #feature-macro,
   #feature-finance {
     padding: 10px 10px 20px !important;
@@ -523,40 +519,28 @@ table tr:hover td { background: rgba(79, 143, 220, 0.05); color: #1e3252; }
 .event-tag.normal    { background: rgba(79,143,220,0.10); color: #1e4d8c; border: 1px solid rgba(79,143,220,0.22); }
 .event-tag.warning   { background: rgba(245,158,11,0.10); color: #92400e; border: 1px solid rgba(245,158,11,0.22); }
 
-/* ══ 登录状态（header 右侧） ══ */
-.header-auth {
+/* ══ 侧栏登录按钮 ══ */
+.sidebar-auth-btn {
+    margin-top: auto;
+}
+.sidebar-auth-btn.logged-in .sidebar-btn-icon {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: #fff;
+    border-radius: 50%;
+    width: 26px;
+    height: 26px;
     display: flex;
     align-items: center;
-    gap: 10px;
-}
-.header-username {
+    justify-content: center;
     font-size: 13px;
-    font-weight: 600;
-    color: #064e3b;
+    font-weight: 700;
 }
-.header-logout-btn,
-.header-login-btn {
-    font-size: 12px;
-    border-radius: 8px;
-    padding: 5px 14px;
-    cursor: pointer;
-    font-weight: 600;
-    background: none;
-    border: 1px solid #e2e8f0;
-    color: #64748b;
-    transition: all 0.2s;
-}
-.header-logout-btn:hover {
-    color: #ef4444;
-    border-color: #fecaca;
-}
-.header-login-btn {
-    border-color: #10b981;
+.sidebar-auth-btn.logged-in {
     color: #10b981;
 }
-.header-login-btn:hover {
-    background: #10b981;
-    color: #fff;
+.sidebar-auth-btn.logged-in:hover {
+    color: #ef4444;
+    background: rgba(239,68,68,0.08);
 }
 
 /* ══ 登录弹窗 ══ */
