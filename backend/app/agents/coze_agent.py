@@ -144,7 +144,9 @@ def verify_news(news_text: str) -> dict:
             # Agent 可能返回中文字段名，兼容多种格式
             judgment = parsed.get("判定结果", parsed.get("judgment", ""))
             if judgment:
-                authentic = "虚假" not in judgment and "假" not in judgment
+                # 清理 emoji 等前缀符号
+                judgment_clean = judgment.replace("✅", "").replace("❌", "").strip()
+                authentic = "虚假" not in judgment_clean and "假" not in judgment_clean
             else:
                 authentic = parsed.get("authentic", parsed.get("is_real", True))
                 if isinstance(authentic, str):
