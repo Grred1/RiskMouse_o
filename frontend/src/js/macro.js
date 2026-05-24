@@ -1,8 +1,9 @@
 // ══════════════════════════════════════════════════════════════════════════════
-// 宏观风险时间轴
+// 宏观风险时间轴 & 月历
 // ══════════════════════════════════════════════════════════════════════════════
 
 const MONTH_NAMES = ['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
+const MONTH_KEYS = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 const WEEKDAYS = ['日','一','二','三','四','五','六'];
 
 let macroData = null;
@@ -36,25 +37,78 @@ function riskDot(level) {
 // 数据获取
 // ══════════════════════════════════════════════════════════════════════════════
 
-async function fetchMacroRiskTimeline(refresh = false) {
+let pollTimer = null;
+
+async function fetchMacroRiskTimeline(refresh = false, background = false) {
     const container = document.getElementById('macroCalendarContent');
     if (!container) return;
     container.innerHTML = '<div class="macro-loading"><div class="spinner"></div>正在加载宏观风险数据...</div>';
+
     try {
-        const url = `/api/macro/risk-timeline?refresh=${refresh}&days=30`;
+        const params = new URLSearchParams({ refresh: refresh, days: '30' });
+        if (background) params.set('background', 'true');
+        const url = `/api/macro/risk-timeline?${params}`;
         const r = await fetch(url);
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const data = await r.json();
         if (data.error) throw new Error(data.error);
         macroData = data;
+
+        // 首次无缓存 → 自动触发后台采集 + 轮询等待
         if (data.cache_status === 'no_cache') {
-            container.innerHTML = `<div class="macro-error">暂无数据，请点击刷新获取最新宏观风险数据</div>`;
+            container.innerHTML = '<div class="macro-loading"><div class="spinner"></div>首次加载中，正在采集宏观风险数据 (约1-2分钟)...</div>';
+            fetch('/api/macro/risk-timeline?refresh=true&background=true&days=30').catch(() => {});
+            startPolling();
             return;
         }
+
+        // 后台采集已启动 → 进入轮询等待
+        if (data.cache_status === 'background_started' || data.cache_status === 'background_updating') {
+            container.innerHTML = '<div class="macro-loading"><div class="spinner"></div>正在更新数据...</div>';
+            startPolling();
+            return;
+        }
+
         renderMacroView();
     } catch (e) {
         container.innerHTML = `<div class="macro-error">数据加载失败: ${e.message}</div>`;
     }
+}
+
+function startPolling() {
+    if (pollTimer) clearInterval(pollTimer);
+    // 5秒后开始轮询，每5秒查一次，最多查60次（5分钟）
+    setTimeout(() => {
+        let attempts = 0;
+        pollTimer = setInterval(async () => {
+            attempts++;
+            if (attempts > 60) {
+                clearInterval(pollTimer);
+                pollTimer = null;
+                const container = document.getElementById('macroCalendarContent');
+                if (container) container.innerHTML = '<div class="macro-error">数据加载超时，请点击刷新重试</div>';
+                return;
+            }
+            try {
+                const r = await fetch('/api/macro/risk-timeline?refresh=false&days=30');
+                const data = await r.json();
+                if (data && data.timeline && (data.timeline.past?.events?.length > 0 || data.timeline.current?.events?.length > 0 || data.timeline.future?.events?.length > 0)) {
+                    clearInterval(pollTimer);
+                    pollTimer = null;
+                    macroData = data;
+                    renderMacroView();
+                }
+            } catch (e) {}
+        }, 5000);
+    }, 5000);
+}
+
+function refreshData() {
+    if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+    }
+    fetchMacroRiskTimeline(true, true);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -108,7 +162,9 @@ function renderMacroView() {
                 <div class="tl-meta">
                     <span>📊 共 ${stats?.total||0} 条宏观风险事件</span>
                     <span class="rc-time">更新: ${macroData.fetched_at || '-'}</span>
-                    <button class="rc-btn-refresh" onclick="fetchMacroRiskTimeline(true)">🔄 刷新数据</button>
+                    <button class="rc-btn-refresh" style="background:${selectedView==='timeline'?'#4f8fdc':'#888'}" onclick="switchView('timeline')">📋 时间轴</button>
+                    <button class="rc-btn-refresh" style="background:${selectedView==='calendar'?'#4f8fdc':'#888'}" onclick="switchView('calendar')">📅 月历</button>
+                    <button class="rc-btn-refresh" onclick="refreshData()">🔄 刷新数据</button>
                 </div>
             </div>
 
@@ -121,12 +177,15 @@ function renderMacroView() {
             </div>
 
             <div class="tl-main-area">
-                <div class="tl-timeline-container">
-                    ${renderTimeline(filteredEvents)}
-                </div>
-                <div class="tl-detail-panel">
-                    ${selectedEvent ? renderDetail(selectedEvent) : '<div class="tl-detail-placeholder">点击左侧事件查看详情</div>'}
-                </div>
+                ${selectedView === 'calendar'
+                    ? renderCalendar(allEvents)
+                    : `<div class="tl-timeline-container">
+                        ${renderTimeline(filteredEvents)}
+                    </div>
+                    <div class="tl-detail-panel">
+                        ${selectedEvent ? renderDetail(selectedEvent) : '<div class="tl-detail-placeholder">点击左侧事件查看详情</div>'}
+                    </div>`
+                }
             </div>
         </div>
     `;
@@ -254,6 +313,138 @@ function switchFilter(type, val) {
 function escapeStr(s) {
     if (!s) return '';
     return s.replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 视图切换
+// ══════════════════════════════════════════════════════════════════════════════
+
+function switchView(view) {
+    selectedView = view;
+    selectedEvent = null;
+    renderMacroView();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 月历渲染
+// ══════════════════════════════════════════════════════════════════════════════
+
+function changeMonth(delta) {
+    calendarMonth += delta;
+    if (calendarMonth > 11) { calendarMonth = 0; calendarYear++; }
+    if (calendarMonth < 0) { calendarMonth = 11; calendarYear--; }
+    renderMacroView();
+}
+
+function renderCalendar(events) {
+    const year = calendarYear;
+    const month = calendarMonth;
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+
+    // 按日期分组事件
+    const eventsByDate = {};
+    events.forEach(ev => {
+        const d = ev.first_occurrence || ev.date || '';
+        if (!d) return;
+        const key = d.substring(0, 10);
+        if (!eventsByDate[key]) eventsByDate[key] = [];
+        eventsByDate[key].push(ev);
+    });
+
+    let cells = '';
+    for (let i = 0; i < firstDay; i++) {
+        cells += '<div class="rc-day rc-day-empty"></div>';
+    }
+    for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        const isToday = dateStr === todayStr;
+        const dayEvents = eventsByDate[dateStr] || [];
+        let riskClass = '';
+        if (dayEvents.length > 0) {
+            const hasHigh = dayEvents.some(e => e.risk_level === '高');
+            const hasMid = dayEvents.some(e => e.risk_level === '中');
+            if (hasHigh) riskClass = 'rc-day-high';
+            else if (hasMid) riskClass = 'rc-day-mid';
+            else riskClass = 'rc-day-low';
+        }
+        const dots = dayEvents.slice(0, 3).map(e => {
+            const dot = e.risk_level === '高' ? '🔴' : e.risk_level === '中' ? '🟡' : '🟢';
+            return `<span title="${e.title}">${dot}</span>`;
+        }).join('');
+        const more = dayEvents.length > 3 ? `<span class="rc-more">+${dayEvents.length-3}</span>` : '';
+
+        cells += `<div class="rc-day ${isToday?'rc-today':''} ${riskClass}" onclick="selectCalendarDay('${dateStr}')">
+            <span class="rc-day-num">${d}</span>
+            <div class="rc-day-dots">${dots}${more}</div>
+        </div>`;
+    }
+    const remaining = (7 - (firstDay + daysInMonth) % 7) % 7;
+    for (let i = 0; i < remaining; i++) {
+        cells += '<div class="rc-day rc-day-empty"></div>';
+    }
+
+    const detailHtml = renderCalendarDetail();
+
+    return `
+        <div style="display:flex;flex-direction:row;flex-wrap:wrap;gap:12px;align-items:flex-start;">
+            <div class="rc-calendar-wrap" style="flex:1;min-width:300px;">
+                <div class="rc-cal-nav">
+                    <button onclick="changeMonth(-1)">◀</button>
+                    <span>${year}年 ${MONTH_KEYS[month]}</span>
+                    <button onclick="changeMonth(1)">▶</button>
+                </div>
+                <div class="rc-cal-weekdays">
+                    ${WEEKDAYS.map(w => `<div class="rc-weekday">${w}</div>`).join('')}
+                </div>
+                <div class="rc-cal-days">${cells}</div>
+            </div>
+            ${detailHtml}
+        </div>
+    `;
+}
+
+let selectedCalendarDate = null;
+
+function selectCalendarDay(dateStr) {
+    selectedCalendarDate = selectedCalendarDate === dateStr ? null : dateStr;
+    renderMacroView();
+}
+
+function renderCalendarDetail() {
+    if (!selectedCalendarDate) {
+        return '<div class="rc-detail-panel" style="flex:0 0 360px;max-width:100%;"><div class="rc-detail-header"><span>点击日期查看事件</span></div></div>';
+    }
+    const allEvents = getAllEvents();
+    const dayEvents = allEvents.filter(ev => {
+        const d = ev.first_occurrence || ev.date || '';
+        return d.substring(0, 10) === selectedCalendarDate;
+    });
+    const parts = selectedCalendarDate.split('-');
+    const label = `${parseInt(parts[1])}月${parseInt(parts[2])}日`;
+    if (dayEvents.length === 0) {
+        return `<div class="rc-detail-panel" style="flex:0 0 360px;max-width:100%;">
+            <div class="rc-detail-header"><span>📅 ${label}</span><button onclick="selectCalendarDay('${selectedCalendarDate}')">✕</button></div>
+            <div class="rc-detail-list"><div style="padding:16px;text-align:center;color:#999;">暂无事件</div></div>
+        </div>`;
+    }
+    return `<div class="rc-detail-panel" style="flex:0 0 360px;max-width:100%;">
+        <div class="rc-detail-header"><span>📅 ${label} (${dayEvents.length}条)</span><button onclick="selectCalendarDay('${selectedCalendarDate}')">✕</button></div>
+        <div class="rc-detail-list">${dayEvents.map(ev => `
+            <div class="rc-detail-card">
+                <div class="rc-detail-card-header">
+                    <span class="rc-level-tag" style="border-color:${ev.risk_level==='高'?'#e74c3c':ev.risk_level==='中'?'#f39c12':'#27ae60'};color:${ev.risk_level==='高'?'#e74c3c':ev.risk_level==='中'?'#f39c12':'#27ae60'}">${ev.risk_level||'中'}风险</span>
+                    <span class="rc-cat-tag">${ev.category||'其他'}</span>
+                    <span class="rc-src-tag">${ev.source||''}</span>
+                </div>
+                <div class="rc-detail-title">${ev.title||''}</div>
+                ${ev.summary ? `<div class="rc-detail-summary">${ev.summary}</div>` : ''}
+                ${ev.url ? `<div class="rc-detail-url"><a href="${ev.url}" target="_blank">查看原文</a></div>` : ''}
+            </div>
+        `).join('')}</div>
+    </div>`;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

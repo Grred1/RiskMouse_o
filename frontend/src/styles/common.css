@@ -356,6 +356,79 @@ table tr:hover td { background: rgba(79, 143, 220, 0.05); color: #1e3252; }
 .tl-detail-link a:hover { background: #3a7bc8; }
 .tl-empty { text-align: center; color: #aaa; padding: 40px 20px; font-size: 13px; }
 
+/* ══ 宏观风险月历视图 ══ */
+.rc-calendar-wrap {
+  background: #fff; border: 1px solid #e8e8e8; border-radius: 10px;
+  overflow: hidden; margin-bottom: 16px;
+}
+.rc-cal-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px; background: #2c3e50; color: #fff;
+}
+.rc-cal-nav button {
+  background: none; border: none; color: #fff; font-size: 16px;
+  cursor: pointer; padding: 2px 10px; border-radius: 4px;
+}
+.rc-cal-nav button:hover { background: rgba(255,255,255,0.15); }
+.rc-cal-nav span { font-size: 15px; font-weight: 700; }
+.rc-cal-weekdays {
+  display: grid; grid-template-columns: repeat(7, 1fr); background: #34495e;
+}
+.rc-weekday {
+  text-align: center; padding: 7px 0; color: #ecf0f1; font-size: 12px; font-weight: 600;
+}
+.rc-cal-days {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: #eee;
+}
+.rc-day {
+  background: #fff; min-height: 64px; padding: 6px 4px;
+  cursor: pointer; transition: background 0.15s; position: relative;
+}
+.rc-day:hover { background: #f0f4ff; }
+.rc-day-empty { background: #fafafa; cursor: default; }
+.rc-today .rc-day-num {
+  background: #2c3e50; color: #fff; border-radius: 50%;
+  width: 22px; height: 22px; display: inline-flex;
+  align-items: center; justify-content: center;
+}
+.rc-day-high { background: #fff5f5; }
+.rc-day-high:hover { background: #fdecea; }
+.rc-day-mid  { background: #fffbf0; }
+.rc-day-mid:hover  { background: #fef9e7; }
+.rc-day-low  { background: #f0fff4; }
+.rc-day-num  { font-size: 13px; font-weight: 600; color: #333; display: block; margin-bottom: 2px; }
+.rc-day-dots { font-size: 10px; line-height: 1.4; }
+.rc-more     { font-size: 10px; color: #999; }
+
+/* 月历详情面板 */
+.rc-detail-panel {
+  background: #fff; border: 1px solid #e0e0e0; border-radius: 10px;
+  padding: 0; overflow: hidden; margin-top: 4px;
+}
+.rc-detail-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 16px; background: #2c3e50; color: #fff; font-size: 14px; font-weight: 600;
+}
+.rc-detail-header button { background: none; border: none; color: #fff; font-size: 16px; cursor: pointer; }
+.rc-detail-list { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.rc-detail-card {
+  padding: 10px 12px; border-radius: 7px;
+  background: #fafafa; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.rc-detail-card-header { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+.rc-level-tag { font-size: 11px; font-weight: 700; padding: 1px 7px; border: 1px solid; border-radius: 10px; }
+.rc-cat-tag, .rc-src-tag { font-size: 11px; padding: 1px 7px; border-radius: 10px; background: #eee; color: #555; }
+.rc-detail-title { font-size: 14px; font-weight: 600; color: #222; margin-bottom: 4px; line-height: 1.5; }
+.rc-detail-summary { font-size: 13px; color: #666; line-height: 1.6; margin-bottom: 4px; }
+.rc-detail-url a { font-size: 12px; color: #2980b9; text-decoration: none; }
+.rc-detail-url a:hover { text-decoration: underline; }
+
+@media (max-width: 768px) {
+  .rc-day { min-height: 48px; padding: 4px 2px; }
+  .rc-day-num { font-size: 11px; }
+  .rc-day-dots { font-size: 9px; }
+}
+
 @media (max-width: 768px) {
   .tl-main-area { grid-template-columns: 1fr; }
   .tl-detail-panel { position: static; max-height: none; }
