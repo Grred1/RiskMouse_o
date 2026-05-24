@@ -16,7 +16,7 @@ try:
 except ImportError:
     pass
 
-from .api import finance_router, sentiment_router, watchlist_router, mouse_agent_router
+from .api import finance_router, sentiment_router, watchlist_router, mouse_agent_router, macro_router
 from .core import _ensure_stock_names_cache
 from . import db as watchlist_db
 
@@ -46,6 +46,7 @@ app.include_router(finance_router)
 app.include_router(sentiment_router)
 app.include_router(watchlist_router)
 app.include_router(mouse_agent_router)
+app.include_router(macro_router)
 
 # 静态文件目录
 frontend_src = os.path.join(FRONTEND_DIR, "src")

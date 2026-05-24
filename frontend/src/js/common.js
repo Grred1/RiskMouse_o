@@ -27,8 +27,10 @@ function switchFeature(feature) {
     document.querySelectorAll('.sidebar-btn').forEach(el => el.classList.remove('active'));
     const sid = document.getElementById('sidebar' + feature.charAt(0).toUpperCase() + feature.slice(1));
     if (sid) sid.classList.add('active');
-    // 切换功能后自动展开侧栏
-    document.body.classList.remove('sidebar-hidden');
+    // 切换后收起侧栏（手机端遮罩消失露出内容）
+    if (window.innerWidth <= 768) {
+        document.body.classList.add('sidebar-hidden');
+    }
     updateSidebarToggleIcon();
 }
 
