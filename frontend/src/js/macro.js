@@ -62,9 +62,11 @@ async function fetchMacroRiskTimeline(refresh = false, background = false) {
             return;
         }
 
-        // 后台采集已启动 → 进入轮询等待
+        // 后台采集已启动 → 已在有缓存时保留当前视图，只在无数据时显示 loading
         if (data.cache_status === 'background_started' || data.cache_status === 'background_updating') {
-            container.innerHTML = '<div class="macro-loading"><div class="spinner"></div>正在更新数据...</div>';
+            if (!macroData || !macroData.timeline) {
+                container.innerHTML = '<div class="macro-loading"><div class="spinner"></div>正在更新数据...</div>';
+            }
             startPolling();
             return;
         }
@@ -77,7 +79,7 @@ async function fetchMacroRiskTimeline(refresh = false, background = false) {
 
 function startPolling() {
     if (pollTimer) clearInterval(pollTimer);
-    // 5秒后开始轮询，每5秒查一次，最多查60次（5分钟）
+    // 2秒后开始轮询，每5秒查一次，最多查60次（5分钟）
     setTimeout(() => {
         let attempts = 0;
         pollTimer = setInterval(async () => {
@@ -107,6 +109,10 @@ function refreshData() {
     if (pollTimer) {
         clearInterval(pollTimer);
         pollTimer = null;
+    }
+    // 先展示已有缓存（让用户立刻看到反馈），再静默后台更新
+    if (macroData && macroData.timeline) {
+        renderMacroView();
     }
     fetchMacroRiskTimeline(true, true);
 }
@@ -165,6 +171,7 @@ function renderMacroView() {
                     <button class="rc-btn-refresh" style="background:${selectedView==='timeline'?'#4f8fdc':'#888'}" onclick="switchView('timeline')">📋 时间轴</button>
                     <button class="rc-btn-refresh" style="background:${selectedView==='calendar'?'#4f8fdc':'#888'}" onclick="switchView('calendar')">📅 月历</button>
                     <button class="rc-btn-refresh" onclick="refreshData()">🔄 刷新数据</button>
+                    ${pollTimer ? '<span style="color:#e67e22;font-size:11px;margin-left:8px;">⟳ 后台更新中...</span>' : ''}
                 </div>
             </div>
 
