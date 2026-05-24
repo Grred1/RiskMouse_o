@@ -2,6 +2,10 @@ async function requestFinancialAI(latest, profit, balance, cash) {
     const section = document.getElementById('aiSection');
     const loading = document.getElementById('aiCombinedLoading');
     const content = document.getElementById('aiCombinedContent');
+
+    const clearRow = document.getElementById('clearCacheRow');
+    if (clearRow) clearRow.style.display = 'block';
+
     section.style.display = 'block';
     loading.style.display = 'block';
     content.innerHTML = '';

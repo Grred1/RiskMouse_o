@@ -1,6 +1,6 @@
 """
 宏观风险日历 API
-多数据源采集 + LLM 智能过滤 + 时间分析 + 语义去重 + 增量缓存
+多数据源采集 → 新闻聚类（相似新闻合并为同一事件） → LLM 并行过滤 → 时间分析
 """
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import time
 import logging
 import hashlib
 from datetime import datetime, timedelta
-from typing import Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from fastapi import APIRouter, Query
 
@@ -18,11 +18,17 @@ from ..core import read_cache, write_cache
 from ..core.config import CACHE_DIR
 from ..core.data import news as data_news
 from ..core.data import guba as data_guba
+from ..core.cache.news_cluster import NewsClusterEngine
+from ..core.cache.similarity import normalize_title as _normalize_title
+from ..core.cache.similarity import calculate_similarity
 from ..agents import run_agent
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["宏观风险"])
+
+# 聚类引擎单例
+_cluster_engine = NewsClusterEngine()
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 工具函数
@@ -76,105 +82,162 @@ def _fetch_all_sources(days: int = 30) -> tuple[list[dict], list[dict]]:
     return data_news.fetch_all_news(days=days)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# LLM 处理
+# 新闻聚类
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _filter_risk_events(official: list[dict], social: list[dict]) -> list[dict]:
+def _cluster_news(official: list[dict], social: list[dict]) -> list[dict]:
+    """
+    将原始新闻摄入聚类引擎，返回去重后的独立事件列表。
+    """
     all_items = official + social
-    if not all_items: return []
-    all_filtered = []
-    batch_size = 10
-    for i in range(0, len(all_items), batch_size):
-        batch = all_items[i:i+batch_size]
-        news_lines = []
-        for item in batch:
-            news_lines.append(
-                f"[{item['date']}] [{item['source']}] {item['title']}\n"
-                f"摘要: {item.get('summary', '')[:100]}\n"
-                f"链接: {item.get('url', '')}"
-            )
-        news_text = "\n\n".join(news_lines)
-        try:
-            result = run_agent("filter_risk_events", {"news_data": news_text})
-            if result and isinstance(result, list):
-                for item in result:
-                    if item.get("keep", False):
-                        all_filtered.append({
-                            "title": item.get("title", ""),
-                            "summary": item.get("summary", ""),
-                            "date": item.get("date", ""),
-                            "url": item.get("url", ""),
-                            "source": item.get("source", ""),
-                            "category": item.get("category", "其他"),
-                            "risk_level": item.get("risk_level", "中"),
-                        })
-        except Exception as e:
-            logger.error(f"LLM过滤失败: {e}")
-        time.sleep(0.3)
+    if not all_items:
+        return []
+
+    engine = NewsClusterEngine(auto_save=False)
+    for item in all_items:
+        engine.ingest(
+            title=item.get("title", ""),
+            summary=item.get("summary", ""),
+            url=item.get("url", ""),
+            source=item.get("source", "unknown"),
+            date=item.get("date", datetime.now().strftime("%Y-%m-%d")),
+        )
+    engine.save()  # 批量写入一次
+
+    return engine.to_llm_items()
+
+# ══════════════════════════════════════════════════════════════════════════════
+# LLM 处理（并行）
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _run_llm_batch(agent_name: str, batch: list[dict],
+                   format_fn, parse_fn) -> list[dict]:
+    """单批 LLM 调用"""
+    batch_text = format_fn(batch)
+    try:
+        result = run_agent(agent_name, batch_text)
+        if result and isinstance(result, list):
+            return parse_fn(result, batch)
+    except Exception as e:
+        logger.error("%s 批次失败: %s", agent_name, e)
+    return []
+
+
+def _format_filter_batch(batch: list[dict]) -> dict:
+    """格式化过滤 Agent 的输入"""
+    lines = []
+    for item in batch:
+        lines.append(
+            f"[{item['date']}] [{item['source']}] {item['title']}\n"
+            f"摘要: {item.get('summary', '')[:100]}\n"
+            f"链接: {item.get('url', '')}"
+        )
+    return {"news_data": "\n\n".join(lines)}
+
+
+def _parse_filter_result(results: list[dict], batch: list[dict]) -> list[dict]:
+    """解析过滤 Agent 的输出"""
+    kept = []
+    for item in results:
+        if item.get("keep", False):
+            kept.append({
+                "title": item.get("title", ""),
+                "summary": item.get("summary", ""),
+                "date": item.get("date", ""),
+                "url": item.get("url", ""),
+                "source": item.get("source", ""),
+                "category": item.get("category", "其他"),
+                "risk_level": item.get("risk_level", "中"),
+            })
+    return kept
+
+
+def _filter_risk_events(clusters: list[dict]) -> list[dict]:
+    """并行过滤风险事件"""
+    if not clusters:
+        return []
+
+    batch_size = 20
+    batches = [clusters[i:i+batch_size] for i in range(0, len(clusters), batch_size)]
+    all_filtered: list[dict] = []
+
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {
+            executor.submit(
+                _run_llm_batch, "filter_risk_events", batch,
+                _format_filter_batch, _parse_filter_result
+            ): batch
+            for batch in batches
+        }
+        for future in as_completed(futures):
+            result = future.result()
+            all_filtered.extend(result)
+
     return all_filtered
 
-def _analyze_event_times(events: list[dict], batch_size: int = 8) -> list[dict]:
-    if not events: return []
+
+def _format_time_batch(batch: list[dict]) -> dict:
+    """格式化时间分析 Agent 的输入"""
     current_date = datetime.now().strftime("%Y-%m-%d")
+    lines = []
+    for item in batch:
+        lines.append(
+            f"- 报道日期: {item['date']}\n"
+            f"  标题: {item['title']}\n"
+            f"  摘要: {item.get('summary', '')[:100]}\n"
+            f"  分类: {item.get('category', '其他')}"
+        )
+    return {"current_date": current_date, "events_data": "\n".join(lines)}
+
+
+def _parse_time_result(results: list[dict], batch: list[dict]) -> list[dict]:
+    """解析时间分析 Agent 的输出"""
     analyzed = []
-    for i in range(0, len(events), batch_size):
-        batch = events[i:i+batch_size]
-        events_lines = []
-        for item in batch:
-            events_lines.append(
-                f"- 报道日期: {item['date']}\n"
-                f"  标题: {item['title']}\n"
-                f"  摘要: {item.get('summary', '')[:100]}\n"
-                f"  分类: {item.get('category', '其他')}"
-            )
-        events_text = "\n".join(events_lines)
-        try:
-            result = run_agent("analyze_event_timing", {
-                "current_date": current_date,
-                "events_data": events_text,
-            })
-            if result and isinstance(result, list):
-                for j, item in enumerate(result):
-                    if j < len(batch):
-                        batch[j]["first_occurrence"] = item.get("first_occurrence", batch[j]["date"])
-                        batch[j]["duration"] = item.get("duration", "中期影响")
-                        batch[j]["duration_days"] = item.get("duration_days", 30)
-                        batch[j]["time_status"] = item.get("time_status", "进行中")
-                        batch[j]["time_reasoning"] = item.get("reasoning", "")
-                        analyzed.append(batch[j])
-        except Exception as e:
-            logger.error(f"时间分析失败: {e}")
-            for item in batch:
-                item["first_occurrence"] = item["date"]
-                item["duration"] = "中期影响"
-                item["duration_days"] = 30
-                item["time_status"] = "进行中"
-                item["time_reasoning"] = "分析失败，默认设置"
-                analyzed.append(item)
-        time.sleep(0.3)
+    for j, item in enumerate(results):
+        if j < len(batch):
+            batch[j]["first_occurrence"] = item.get("first_occurrence", batch[j]["date"])
+            batch[j]["duration"] = item.get("duration", "中期影响")
+            batch[j]["duration_days"] = item.get("duration_days", 30)
+            batch[j]["time_status"] = item.get("time_status", "进行中")
+            batch[j]["time_reasoning"] = item.get("reasoning", "")
+            analyzed.append(batch[j])
+    # 补全未返回的
+    for j in range(len(results), len(batch)):
+        batch[j]["first_occurrence"] = batch[j]["date"]
+        batch[j]["duration"] = "中期影响"
+        batch[j]["duration_days"] = 30
+        batch[j]["time_status"] = "进行中"
+        batch[j]["time_reasoning"] = "默认设置"
+        analyzed.append(batch[j])
     return analyzed
 
-# ══════════════════════════════════════════════════════════════════════════════
-# 语义去重
-# ══════════════════════════════════════════════════════════════════════════════
 
-def _normalize_title(title: str) -> str:
-    t = title.lower()
-    t = re.sub(r'\d{4}[-/年]\d{1,2}[-/月]\d{1,2}[日号]?', '', t)
-    t = re.sub(r'\d{1,2}[-/月]\d{1,2}[日号]?', '', t)
-    t = re.sub(r'\d{1,2}[点时]\d{0,2}分?', '', t)
-    t = re.sub(r'\d+[\.,]?\d*%', '', t)
-    t = re.sub(r'\d+[\.,]?\d*', '', t)
-    for org in ['高盛', '摩根', '瑞银', '摩根士丹利', '美银', '中信', '国泰', '华尔街', '市场', '全球', '国际', '国内']:
-        t = t.replace(org.lower(), '')
-    t = re.sub(r'[^\w\u4e00-\u9fff]', '', t)
-    return t.strip()
+def _analyze_event_times(events: list[dict]) -> list[dict]:
+    """并行分析事件时间特征"""
+    if not events:
+        return []
 
-def _calculate_similarity(title1: str, title2: str) -> float:
-    s1 = set(_normalize_title(title1))
-    s2 = set(_normalize_title(title2))
-    if not s1 or not s2: return 0.0
-    return len(s1 & s2) / len(s1 | s2) if len(s1 | s2) > 0 else 0.0
+    batch_size = 10
+    batches = [events[i:i+batch_size] for i in range(0, len(events), batch_size)]
+    all_analyzed: list[dict] = []
+
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {
+            executor.submit(
+                _run_llm_batch, "analyze_event_timing", batch,
+                _format_time_batch, _parse_time_result
+            ): batch
+            for batch in batches
+        }
+        for future in as_completed(futures):
+            result = future.result()
+            all_analyzed.extend(result)
+
+    return all_analyzed
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 语义去重（轻量字符级，已由聚类引擎处理，此步为二次保护）
+# ══════════════════════════════════════════════════════════════════════════════
 
 def _merge_sources(sources: list[str]) -> list[str]:
     seen = set()
@@ -190,7 +253,7 @@ def _semantic_dedup(events: list[dict], threshold: float = 0.6) -> list[dict]:
         merged = False
         ev_sources = ev.get("sources", [ev.get("source", "未知")])
         for existing in result:
-            if _calculate_similarity(ev.get("title", ""), existing.get("title", "")) >= threshold:
+            if calculate_similarity(ev.get("title", ""), existing.get("title", "")) >= threshold:
                 existing_sources = existing.get("sources", [])
                 existing["sources"] = _merge_sources(existing_sources + ev_sources)
                 if ev.get("url"): existing["url"] = ev.get("url")
@@ -310,10 +373,11 @@ def get_macro_risk_timeline(
             try:
                 existing = _load_persistent_events().get("events", [])
                 official, social = _fetch_all_sources(days=days)
-                filtered = _filter_risk_events(official, social)
+                clusters = _cluster_news(official, social)
+                filtered = _filter_risk_events(clusters)
                 analyzed = _analyze_event_times(filtered)
                 merged = _merge_events(existing, analyzed)
-                _save_persistent_events({"events": merged, "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+                _save_persistent_events({"events": merged})
                 timeline = _classify_timeline_events(merged)
                 all_stats = {"total": len(merged), "raw_count": len(official) + len(social)}
                 data = {"timeline": timeline, "stats": all_stats, "fetched_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
@@ -333,15 +397,15 @@ def get_macro_risk_timeline(
             existing_fingerprints.add(f"{title_words}_{date}")
         official, social = _fetch_all_sources(days=days)
         if not official and not social:
-            return {"timeline": {"past": {"events": [], "stats": {}}, "current": {"events": [], "stats": {}}, "future": {"events": [], "stats": {}}}, "stats": {"total": 0, "raw_count": 0}, "fetched_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "from_cache": False}
-        new_social = []
-        for ev in social:
-            title_words = "".join(filter(str.isalnum, ev.get("title", "")[:20])).lower()
-            date = ev.get("date", "")[:10]
-            fp = f"{title_words}_{date}"
-            if fp not in existing_fingerprints: new_social.append(ev)
-        logger.info(f"增量处理: 官方{len(official)}条, 社交新{len(new_social)}条, 已有缓存{len(existing)}条")
-        filtered = _filter_risk_events(official, new_social)
+            return {
+                "timeline": {"past": {"events": [], "stats": {}}, "current": {"events": [], "stats": {}}, "future": {"events": [], "stats": {}}},
+                "stats": {"total": 0, "raw_count": 0},
+                "fetched_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "from_cache": False
+            }
+        clusters = _cluster_news(official, social)
+        logger.info("聚类后: 原始%s+%s条 → %s个独立事件", len(official), len(social), len(clusters))
+        filtered = _filter_risk_events(clusters)
         analyzed = _analyze_event_times(filtered)
         merged = _merge_events(existing, analyzed)
         _save_persistent_events({"events": merged})

@@ -97,7 +97,14 @@ class Agent:
 
         prompt = self._get_prompt(inputs)
 
-        result = call_llm(prompt, max_tokens=self.max_tokens, temperature=self.temperature)
+        result = call_llm(
+            messages=[
+                {"role": "system", "content": self.description or ""},
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=self.max_tokens,
+            temperature=self.temperature,
+        )
 
         if self.output_parser:
             result = self.output_parser(result)

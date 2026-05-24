@@ -7,6 +7,9 @@ import json
 from typing import Optional
 
 import pandas as pd
+import os
+import glob
+
 from fastapi import APIRouter, HTTPException, Query
 
 from ..core import (
@@ -18,6 +21,8 @@ from ..core import (
     read_cache,
     write_cache,
     load_prompts,
+    CACHE_DIR,
+    AI_CACHE_DIR,
 )
 from ..core.data import akshare as data_akshare
 from ..agents import run_agent
@@ -382,3 +387,69 @@ def analyze_financial_combined(data: dict):
         "final_conclusion": final_conclusion,
         "raw": result_text,
     }
+
+
+@router.post("/financial/clear-cache")
+def clear_finance_cache(data: dict):
+    """清除指定股票在所有模块的缓存数据"""
+    code = data.get("code", "").strip()
+    if not code or not code.isdigit() or len(code) != 6:
+        raise HTTPException(status_code=400, detail="无效股票代码")
+
+    prefixes = ["SH", "SZ", "BJ"]
+    removed = 0
+
+    # 1. cache/{SZ/SH/BJ}{code}.json（主营构成）
+    for p in prefixes:
+        path = os.path.join(CACHE_DIR, f"{p}{code}.json")
+        if os.path.exists(path):
+            try:
+                os.remove(path)
+                removed += 1
+            except Exception:
+                pass
+
+    # 2. cache/financial_{code}.json
+    path = os.path.join(CACHE_DIR, f"financial_{code}.json")
+    if os.path.exists(path):
+        try:
+            os.remove(path)
+            removed += 1
+        except Exception:
+            pass
+
+    # 3. cache/watchlist_analysis_{code}.json
+    path = os.path.join(CACHE_DIR, f"watchlist_analysis_{code}.json")
+    if os.path.exists(path):
+        try:
+            os.remove(path)
+            removed += 1
+        except Exception:
+            pass
+
+    # 4. cache/guba_{code}*.json
+    for f in glob.glob(os.path.join(CACHE_DIR, f"guba_{code}*.json")):
+        try: os.remove(f); removed += 1
+        except: pass
+
+    # 5. cache/news_full_{code}_*.json
+    for f in glob.glob(os.path.join(CACHE_DIR, f"news_full_{code}_*.json")):
+        try: os.remove(f); removed += 1
+        except: pass
+
+    # 6. cache/sparkline_{code}_*.json
+    for f in glob.glob(os.path.join(CACHE_DIR, f"sparkline_{code}_*.json")):
+        try: os.remove(f); removed += 1
+        except: pass
+
+    # 7. cache/agent_*{code}*.json
+    for f in glob.glob(os.path.join(CACHE_DIR, f"agent_*{code}*.json")):
+        try: os.remove(f); removed += 1
+        except: pass
+
+    # 8. cache/ai/*_{code}*.json
+    for f in glob.glob(os.path.join(AI_CACHE_DIR, f"*{code}*.json")):
+        try: os.remove(f); removed += 1
+        except: pass
+
+    return {"ok": True, "removed": removed, "code": code}

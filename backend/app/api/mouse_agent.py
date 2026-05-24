@@ -363,7 +363,7 @@ def _surf_macro():
 判断是否有需要添加到宏观日历的重要新事件。只需输出 JSON:
 {{"should_add": true/false, "reason": "理由", "event": {{"name": "事件名", "date": "日期", "tag": "important/normal/warning"}}}}
 """
-    result = call_llm(prompt, max_tokens=300)
+    result = call_llm(messages=[{"role": "user", "content": prompt}], max_tokens=300)
     try:
         parsed = json.loads(result)
         if parsed.get("should_add") and parsed.get("event"):
@@ -441,7 +441,7 @@ def _surf_guba_verify():
         _push_screen(f"🔎 筛选: {title[:30]}...")
         try:
             filter_prompt = NEWS_FILTER_PROMPT.format(title=title)
-            verdict = call_llm(filter_prompt, max_tokens=10)
+            verdict = call_llm(messages=[{"role": "user", "content": filter_prompt}], max_tokens=10)
             if "是" in verdict:
                 important_posts.append(post)
         except Exception:

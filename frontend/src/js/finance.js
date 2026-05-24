@@ -60,3 +60,25 @@ function adjustFinLayout() {
         document.getElementById('zygcLayout').style.display = 'none';
     }
 }
+
+async function clearCache() {
+    if (!currentSymbol) return;
+    if (!confirm(`确定清除 ${currentSymbol} 在所有模块的缓存数据？`)) return;
+    try {
+        const resp = await fetch('/api/financial/clear-cache', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: currentSymbol }),
+        });
+        const data = await resp.json();
+        if (data.ok) {
+            alert(`已清除 ${data.removed} 个缓存文件，点击查询将重新分析`);
+            document.getElementById('aiSection').style.display = 'none';
+            document.getElementById('clearCacheRow').style.display = 'none';
+        } else {
+            alert('清缓存失败');
+        }
+    } catch (e) {
+        alert('清缓存失败: ' + e.message);
+    }
+}

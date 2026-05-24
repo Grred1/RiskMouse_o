@@ -119,17 +119,36 @@ def _safe_get_text_content(content) -> str:
 
 
 def call_llm(
-    prompt: str,
+    prompt: str = "",
     max_tokens: int = 600,
     temperature: float = 0.7,
     model: str | None = None,
+    messages: list[dict] | None = None,
 ) -> str:
+    """
+    调用大模型。
+    支持两种传参方式：
+      1. messages=[...]  — 直接传入完整消息列表（推荐，兼容 Coze 平台）
+      2. prompt="..."    — 传入单条文本，自动包装为 user 消息
+
+    Coze 平台要求必须包含 human message（role=user）。
+    """
     provider = _get_provider()
     try:
+        # 优先使用 messages，否则从 prompt 构造
+        if messages is None:
+            msgs: list[dict] = [{"role": "user", "content": prompt}]
+        else:
+            msgs = messages
+
+        # 确保有 user/human 消息（Coze 平台要求）
+        if not any(m.get("role") in ("user", "human") for m in msgs):
+            msgs.append({"role": "user", "content": "请继续"})
+
         if provider == "coze":
             client = _get_coze_client()
             response = client.invoke(
-                messages=[{"role": "user", "content": prompt}],
+                messages=msgs,
                 temperature=temperature,
                 max_completion_tokens=max_tokens,
             )
@@ -138,7 +157,7 @@ def call_llm(
             client = _get_deepseek_client()
             response = client.chat.completions.create(
                 model=model or DEFAULT_MODEL_DEEPSEEK,
-                messages=[{"role": "user", "content": prompt}],
+                messages=msgs,
                 temperature=temperature,
                 max_tokens=max_tokens,
             )
