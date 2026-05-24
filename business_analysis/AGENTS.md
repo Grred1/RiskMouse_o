@@ -75,6 +75,8 @@ business_analysis/
 │   ├── stock_names.json             # A 股全量股票名称词典
 │   └── ai/                          # AI 分析结果缓存
 │
+├── 版本修改.md                      # 变更日志
+
 └── .env                             # 环境变量（DeepSeek/Coze Key 等，不提交版本库）
 ```
 
@@ -83,8 +85,8 @@ business_analysis/
 | 模块 | 前端文件 | 后端文件 | 功能说明 |
 |------|----------|----------|----------|
 | 📅 **宏观日历** | `macro.js` | — | 全年宏观数据发布日程表，重要/关注/常规三级标记 |
-| 📊 **财报风险** | `finance.js` | `api/finance.py` | 主营构成（行业/产品/地区维度）+ 财务全景（利润表、资产负债表、现金流）+ ECharts 趋势图表 + AI 四维评分 |
-| 📰 **风险挖掘** | `risk.js` | `api/sentiment.py` | 涨停池 + 龙虎榜热门关注列表 + AI 五维量化评分（基本面/财务/情绪/估值/暴雷） |
+| 📊 **财报风险** | `finance.js` | `api/finance.py` | 主营构成（行业/产品/地区维度）+ 财务全景（利润表、资产负债表、现金流）+ 7 个预定义 ECharts 图表（营收趋势、研发投入、费用率、资产扩张、盈利能力、资产结构、现金流），数据缺失时自动隐藏面板 + AI 四维评分 |
+| 📰 **风险挖掘** | `risk.js` | `api/sentiment.py` | 涨停池 + 龙虎榜热门关注列表 + AI 三维结构化评分（逻辑匹配度/财务健康度/估值泡沫度 1-5分），前端评分条 + 星标胶囊可视化 |
 | 🛡️ **自选风控** | `watchlist.js` | `api/watchlist.py` | 自选股管理 + 图片 OCR 识别 + 四维算法评分 + 新闻词云 + 风险日记 |
 | 🐭 **小老鼠 Agent** | `mouse-agent.js` (Web Component) | `api/mouse_agent.py` | 自动定时巡检 + 股吧真伪鉴定 + RAG 问答 + 邮件通知 |
 
@@ -103,8 +105,9 @@ business_analysis/
 
 ### 2. AI 评分（LLM 驱动）
 
-- **财报 AI 分析**：偿债能力 / 营运能力 / 盈利能力 / 成长能力 四维评分
-- **五维风险评分**：基本面 / 财务健康 / 市场情绪 / 估值 / 暴雷风险（各 1-10 分）
+- **财报 AI 分析**：偿债能力 / 营运能力 / 盈利能力 / 成长能力 四维评分，可视化星级展示
+- **风险挖掘 AI 评分**：JSON 结构化输出（逻辑匹配度、财务健康度、估值泡沫度 1-5分），前端以评分条 + 星标胶囊可视化展示
+- **旧版文本回退**：LLM 未输出 JSON 时自动按旧格式（【综合风险评分】【各维度评分】【核心风险点】【风险结论】）解析并结构化渲染
 
 ## API 接口一览
 
@@ -116,7 +119,7 @@ business_analysis/
 | `/api/analyze/zygc` | POST | 财报风险 | AI 解读主营构成 |
 | `/api/analyze/financial` | POST | 财报风险 | AI 财务综合分析（健康+增长） |
 | `/api/risk/pool` | GET | 风险挖掘 | 获取热门关注池（涨停板 + 龙虎榜） |
-| `/api/risk/analyze` | POST | 风险挖掘 | AI 五维风险评分 |
+| `/api/risk/analyze` | POST | 风险挖掘 | AI 结构化评分（逻辑匹配度/财务健康度/估值泡沫度 1-5分 + 综合结论 JSON） |
 | `/api/watchlist/list` | GET | 自选风控 | 获取自选股列表 |
 | `/api/watchlist/add` | POST | 自选风控 | 添加自选股 |
 | `/api/watchlist/remove` | POST | 自选风控 | 移除自选股 |
@@ -154,6 +157,7 @@ bash scripts/coze-preview-run.sh
 
 - **后端入口**: `backend.app.main:app`，FastAPI 应用自动挂载 `frontend/` 为静态文件目录
 - **缓存机制**: 数据缓存 `cache/` 目录自动生成，AI 分析结果缓存避免重复调用 LLM
+- **缓存控制**: HTML 响应加 `Cache-Control: no-cache` 头，JS/CSS 通过 `?v=N` 版本号控制缓存更新
 - **本地 RAG**: `cache_rag.py` 自动索引 `cache/` 下所有 JSON 文件，供小老鼠 Agent 闲聊时检索
 - **LLM 双模式**: 通过 `LLM_PROVIDER` 环境变量切换 DeepSeek (本地开发) / Coze (平台部署)
 - **双轨评分**: 算法评分即时响应（无 AI 依赖），AI 评分提供深度解读（需 LLM 调用）
