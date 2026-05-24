@@ -36,8 +36,10 @@ async function search() {
 
     // 重置切股状态
     growthChartsRendered = false;
-    // 重置所有财务图表面板为可见（避免上一只股票隐藏状态残留）
+    // 重置所有财务图表面板、grid 行、sub-tab 按钮为可见（避免上一只股票隐藏状态残留）
     document.querySelectorAll('#financialContent .panel').forEach(p => p.style.display = '');
+    document.querySelectorAll('.fin-chart-grid').forEach(g => g.style.display = '');
+    document.querySelectorAll('#finSectionHeader .sub-tab').forEach(t => t.style.display = '');
 
     document.getElementById('loadingOverlay').style.display = 'block';
     document.getElementById('loadingText').textContent = '正在获取主营构成数据...';
@@ -74,6 +76,11 @@ async function refreshData() {
     if (!currentSymbol) return;
     const input = document.getElementById('symbolInput').value.trim().toUpperCase();
     hideError();
+
+    // 重置所有财务图表面板、grid 行、sub-tab 按钮为可见（避免上一只股票隐藏状态残留）
+    document.querySelectorAll('#financialContent .panel').forEach(p => p.style.display = '');
+    document.querySelectorAll('.fin-chart-grid').forEach(g => g.style.display = '');
+    document.querySelectorAll('#finSectionHeader .sub-tab').forEach(t => t.style.display = '');
 
     document.getElementById('loadingOverlay').style.display = 'block';
     document.getElementById('loadingText').textContent = '正在更新主营构成数据...';
@@ -144,19 +151,18 @@ function render() {
 
     // 仅显示有数据的分类 Tab
     const availableCategories = new Set(allData.records.map(r => r.分类类型));
-    document.querySelectorAll('.tabs .tab').forEach(el => {
+    document.querySelectorAll('.zygc-nav-item').forEach(el => {
         const catKey = el.dataset.tab;
         const catName = REVERSE_MAP[catKey];
         el.style.display = availableCategories.has(catName) ? '' : 'none';
     });
 
     // 如果当前激活的 Tab 被隐藏，切换到第一个可见 Tab
-    const activeTab = document.querySelector('.tabs .tab.active');
-    if (activeTab && activeTab.style.display === 'none') {
-        const firstVisible = document.querySelector('.tabs .tab:not([style*="none"])');
-        if (firstVisible) {
-            switchTab(firstVisible.dataset.tab);
-        }
+    const activeNav = document.querySelector('.zygc-nav-item.active');
+    if (activeNav && activeNav.style.display === 'none') {
+        const firstVisible = Array.from(document.querySelectorAll('.zygc-nav-item'))
+            .find(el => el.style.display !== 'none');
+        if (firstVisible) switchTab(firstVisible.dataset.tab);
     }
 
     onReportChange();
@@ -170,6 +176,7 @@ function onReportChange() {
 
     const categories = ['industry', 'product', 'region'];
     categories.forEach(cat => renderCategory(cat, date));
+    adjustFinLayout();
 }
 
 function renderCategory(catKey, date) {
@@ -268,18 +275,50 @@ function renderChart(catKey, data) {
 }
 
 function switchTab(catKey) {
-    document.querySelectorAll('.tabs .tab').forEach(el => el.classList.remove('active'));
-    document.querySelector(`.tabs .tab[data-tab="${catKey}"]`).classList.add('active');
+    document.querySelectorAll('.zygc-nav-item').forEach(el => el.classList.remove('active'));
+    const target = document.querySelector(`.zygc-nav-item[data-tab="${catKey}"]`);
+    if (target) target.classList.add('active');
     document.querySelectorAll('.tab-content').forEach(el => {
-        if (el.id === 'tab-' + catKey) {
-            el.classList.add('active');
-        } else {
-            el.classList.remove('active');
-        }
+        el.classList.toggle('active', el.id === 'tab-' + catKey);
     });
     setTimeout(() => {
         if (chartInstances[catKey]) chartInstances[catKey].resize();
     }, 100);
+}
+
+// ===== 布局自适应 =====
+
+function adjustFinLayout() {
+    // 1. fin-chart-grid 内无可见 panel 时隐藏整个 grid 容器
+    document.querySelectorAll('.fin-chart-grid').forEach(grid => {
+        const hasVisible = Array.from(grid.querySelectorAll('.fin-panel'))
+            .some(p => p.style.display !== 'none');
+        grid.style.display = hasVisible ? '' : 'none';
+    });
+
+    // 2. sub-tab 下所有 panel 均无数据时，隐藏对应 tab 按钮
+    document.querySelectorAll('.sub-tab-content').forEach(content => {
+        const hasVisible = Array.from(content.querySelectorAll('.fin-panel'))
+            .some(p => p.style.display !== 'none');
+        const key = content.id.replace('subtab-', '');
+        const tabBtn = document.querySelector(`#finSectionHeader .sub-tab[data-tab="${key}"]`);
+        if (tabBtn) tabBtn.style.display = hasVisible ? '' : 'none';
+    });
+
+    // 3. 若所有 sub-tab 均隐藏，隐藏整个财务全景区域
+    const anyVisibleTab = Array.from(document.querySelectorAll('#finSectionHeader .sub-tab'))
+        .some(t => t.style.display !== 'none');
+    if (!anyVisibleTab) {
+        document.getElementById('finSectionHeader').style.display = 'none';
+        document.getElementById('financialContent').style.display = 'none';
+    }
+
+    // 4. 若主营构成三个分类 nav 全部无数据，隐藏整个 zygcLayout
+    const anyVisibleNav = Array.from(document.querySelectorAll('.zygc-nav-item'))
+        .some(n => n.style.display !== 'none');
+    if (!anyVisibleNav) {
+        document.getElementById('zygcLayout').style.display = 'none';
+    }
 }
 
 // ===== 财务全景 =====
@@ -339,6 +378,7 @@ function renderFinancialCharts() {
     renderCashFlow(cash);
     renderGrowthCharts();
     growthChartsRendered = true;
+    adjustFinLayout();
 
     requestFinancialAI(latest, profit, balance, cash);
 }

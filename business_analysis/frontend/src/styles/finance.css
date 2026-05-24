@@ -328,21 +328,16 @@
 /* ══ 图表网格布局 ══ */
 .fin-chart-grid {
     display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
     gap: 14px;
     margin-bottom: 14px;
 }
-.fin-grid-2 { grid-template-columns: 1fr 1fr; }
-.fin-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
 .fin-panel { margin-bottom: 0 !important; }
-.fin-grid-2 .chart-container { height: clamp(220px, 30vh, 300px); }
-.fin-grid-3 .chart-container { height: clamp(180px, 25vh, 240px); }
+.fin-chart-grid .chart-container { height: clamp(200px, 27vh, 280px); }
 
-@media (max-width: 1100px) {
-    .fin-grid-3 { grid-template-columns: 1fr 1fr; }
-}
 @media (max-width: 768px) {
     .search-box { flex-direction: column; }
     .search-box button { width: 100%; }
     .chart-container { height: 240px; }
-    .fin-grid-2, .fin-grid-3 { grid-template-columns: 1fr; }
+    .fin-chart-grid { grid-template-columns: 1fr; }
 }
