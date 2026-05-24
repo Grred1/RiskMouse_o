@@ -10,7 +10,6 @@ import base64
 import io
 import json
 import os
-import re
 import time
 from datetime import datetime
 
@@ -39,58 +38,6 @@ _prompt_path = os.path.join(PROMPTS_DIR, "watchlist_risk.txt")
 if os.path.exists(_prompt_path):
     with open(_prompt_path, "r", encoding="utf-8") as _f:
         _WATCHLIST_RISK_PROMPT = _f.read()
-
-
-# ── 图片识别 ────────────────────────────────────────────────────
-
-_VISION_PROMPT = (
-    "请识别图片中所有A股股票代码（6位数字，以0、3、6、8、4开头）。"
-    "仅输出代码列表，用英文逗号分隔，不要包含其他文字。"
-    "如果没有找到任何股票代码，请输出：无"
-)
-
-
-# easyocr 单例，服务启动时懒加载，后续复用同一个实例
-_easyocr_reader = None
-
-def _get_easyocr_reader():
-    global _easyocr_reader
-    if _easyocr_reader is None:
-        import easyocr
-        _easyocr_reader = easyocr.Reader(['ch_sim', 'en'], gpu=False, verbose=False)
-    return _easyocr_reader
-
-
-def _extract_codes_from_image(image_base64: str, mime_type: str = "image/png") -> tuple[list, str]:
-    """从截图中提取6位股票代码，使用 easyocr 识别（模型复用单例，第一次慢后续快）"""
-    try:
-        import numpy as np
-        from PIL import Image
-        reader = _get_easyocr_reader()
-        img_bytes = base64.b64decode(image_base64)
-        img = Image.open(io.BytesIO(img_bytes))
-        img_array = np.array(img)
-        results = reader.readtext(img_array, detail=0)
-        text = " ".join(results)
-        codes = re.findall(r'\b\d{6}\b', text)
-        codes = [c for c in codes if c[0] in ('0', '3', '6', '8', '4')]
-        return list(dict.fromkeys(codes)), "easyocr"
-    except ImportError:
-        return [], "unavailable"
-    except Exception:
-        return [], "easyocr"
-
-
-@router.post("/parse-image")
-def parse_watchlist_image(data: dict):
-    """从截图中识别股票代码列表（DeepSeek Vision 优先，easyocr 回退）"""
-    image_b64 = data.get("image", "")
-    mime_type = data.get("mime_type", "image/png")
-    if not image_b64:
-        raise HTTPException(status_code=400, detail="缺少图片数据")
-
-    codes, method = _extract_codes_from_image(image_b64, mime_type)
-    return {"codes": codes, "ocr_available": method != "unavailable", "method": method}
 
 
 # ── 持久化 CRUD ──────────────────────────────────────────────────

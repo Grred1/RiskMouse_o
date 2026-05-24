@@ -264,22 +264,25 @@ function handleImageFile(file) {
 async function parseImageCodes(base64, mimeType) {
     const hint = document.getElementById('parsingHint');
     setOcrAddBtn([], false);
-    hint.textContent = '识别中...';
+
+    if (typeof Tesseract === 'undefined') {
+        hint.textContent = '⚠️ OCR 引擎加载失败，请刷新页面重试';
+        return;
+    }
+
+    hint.textContent = '🔍 识别中，首次使用需下载引擎（约几秒）...';
     try {
-        const resp = await fetch('/api/watchlist/parse-image', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ image: base64, mime_type: mimeType }),
-        });
-        const data = await resp.json();
-        if (data.ocr_available === false) {
-            hint.textContent = '⚠️ 未配置识别服务，请手动输入（可设置 DASHSCOPE_API_KEY 启用 Qwen-VL）';
+        const dataUrl = `data:${mimeType};base64,${base64}`;
+        const { data: { text } } = await Tesseract.recognize(dataUrl, 'eng');
+
+        const allMatches = [...text.matchAll(/\d{6}/g)].map(m => m[0]);
+        const codes = [...new Set(allMatches.filter(c => ['0','3','4','6','8'].includes(c[0])))];
+
+        if (codes.length === 0) {
+            hint.textContent = '未识别到股票代码，请手动添加';
             return;
         }
-        const codes = data.codes || [];
-        const engine = data.method === 'qwen-vl' ? 'Qwen-VL' : 'OCR';
-        if (codes.length === 0) { hint.textContent = `${engine} 未识别到股票代码，请手动添加`; return; }
-        hint.textContent = `${engine} 识别到 ${codes.length} 只股票代码`;
+        hint.textContent = `✅ 识别到 ${codes.length} 只股票`;
         codes.forEach(c => addToPending(c));
         setOcrAddBtn(codes, true);
     } catch (e) {
