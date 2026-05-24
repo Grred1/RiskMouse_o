@@ -27,4 +27,28 @@ function switchFeature(feature) {
     document.querySelectorAll('.sidebar-btn').forEach(el => el.classList.remove('active'));
     const sid = document.getElementById('sidebar' + feature.charAt(0).toUpperCase() + feature.slice(1));
     if (sid) sid.classList.add('active');
+    // 切换功能后自动展开侧栏
+    document.body.classList.remove('sidebar-hidden');
+    updateSidebarToggleIcon();
 }
+
+function toggleMobileSidebar() {
+    document.body.classList.toggle('sidebar-hidden');
+    updateSidebarToggleIcon();
+}
+
+function updateSidebarToggleIcon() {
+    const toggle = document.getElementById('sidebarToggle');
+    if (!toggle) return;
+    const hidden = document.body.classList.contains('sidebar-hidden');
+    if (window.innerWidth <= 768) {
+        toggle.textContent = hidden ? '▶' : '▼';
+    } else {
+        toggle.textContent = hidden ? '▶' : '◀';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    updateSidebarToggleIcon();
+    window.addEventListener('resize', updateSidebarToggleIcon);
+});

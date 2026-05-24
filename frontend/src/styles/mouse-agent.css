@@ -321,3 +321,47 @@
 }
 .ma-chat-send:hover { background: #1a3a7a; }
 .ma-chat-send:disabled { background: #ccc; cursor: not-allowed; }
+
+@media (max-width: 768px) {
+  .ma-wrapper { bottom: 68px; right: 10px; }
+  .ma-character { width: 100px; height: 120px; }
+  .ma-pet { width: 90px; height: 90px; }
+  .ma-screen {
+    top: -68px;
+    width: 108px;
+    min-height: 60px;
+    padding: 6px 8px;
+  }
+  .ma-screen-content { font-size: 9px; max-height: 50px; }
+  .ma-chat-box {
+    right: 10px;
+    bottom: 130px;
+    width: calc(100vw - 20px);
+    height: 50vh;
+    max-height: 400px;
+  }
+  .ma-notif-panel { width: calc(100vw - 20px); right: 0; }
+}
+
+@media (max-width: 480px) {
+  .ma-wrapper { bottom: 60px; right: 6px; }
+  .ma-character { width: 80px; height: 100px; }
+  .ma-pet { width: 72px; height: 72px; }
+  .ma-screen {
+    top: -56px;
+    width: 88px;
+    min-height: 48px;
+    padding: 4px 6px;
+    border-width: 2px;
+  }
+  .ma-screen-content { font-size: 8px; max-height: 40px; }
+  .ma-screen::after { bottom: -8px; border-left-width: 6px; border-right-width: 6px; border-top-width: 8px; }
+  .ma-chat-box {
+    right: 6px;
+    width: calc(100vw - 12px);
+    height: 55vh;
+  }
+  .ma-chat-msgs { padding: 8px 10px; }
+  .ma-msg { font-size: 12px; padding: 6px 10px; }
+  .ma-chat-input { font-size: 12px; padding: 6px 10px; }
+}

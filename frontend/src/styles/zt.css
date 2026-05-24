@@ -568,3 +568,40 @@
     background: rgba(79, 143, 220, 0.06);
     border-color: rgba(79, 143, 220, 0.18);
 }
+
+/* ══ 响应式：768px 及以下 ══ */
+@media (max-width: 768px) {
+    .risk-page-grid {
+        grid-template-columns: 1fr;
+        height: auto;
+        gap: 12px;
+    }
+    .risk-page-grid > div:first-child { min-height: 300px; }
+    .zt-detail-panel { height: auto; min-height: 200px; }
+    .zt-toolbar { gap: 8px; padding: 10px 12px; }
+    .zt-toolbar label { font-size: 12px; }
+    .zt-toolbar input[type="date"] { font-size: 12px; padding: 5px 8px; flex: 1; min-width: 0; }
+    .zt-toolbar .zt-summary { font-size: 12px; }
+    .zt-table th,
+    .zt-table td { padding: 7px 8px; font-size: 11px; }
+    #ztFilters { flex-direction: column; gap: 6px; }
+    .zt-filters-select { margin-right: 0; }
+    .risk-dimension-score { font-size: 15px; }
+    .risk-dimension-label { font-size: 12px; }
+    #ztDetailHeader { font-size: 15px; }
+}
+
+@media (max-width: 480px) {
+    .risk-page-grid { gap: 8px; }
+    .zt-toolbar { padding: 8px 10px; }
+    .zt-toolbar label { font-size: 11px; }
+    .zt-table th,
+    .zt-table td { padding: 5px 6px; font-size: 10px; }
+    #ztDetailHeader { font-size: 14px; }
+    .zt-detail-content { padding: 12px 14px; }
+    .risk-star-row { gap: 4px; }
+    .risk-star-item { padding: 2px 7px; font-size: 11px; }
+    .risk-overall-badge { font-size: 11px; padding: 4px 10px; }
+    .risk-dimension-score { font-size: 14px; }
+    .risk-bar-track { height: 6px; }
+}

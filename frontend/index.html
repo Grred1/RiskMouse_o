@@ -5,12 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>智能风控评测平台</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
-    <link rel="stylesheet" href="src/styles/common.css?v=5">
-    <link rel="stylesheet" href="src/styles/finance.css?v=5">
-    <link rel="stylesheet" href="src/styles/zt.css?v=5">
-    <link rel="stylesheet" href="src/styles/watchlist.css?v=5">
+    <link rel="stylesheet" href="src/styles/common.css?v=21">
+    <link rel="stylesheet" href="src/styles/finance.css?v=7">
+    <link rel="stylesheet" href="src/styles/zt.css?v=7">
+    <link rel="stylesheet" href="src/styles/watchlist.css?v=14">
 </head>
 <body>
+
+<!-- ── 侧栏折叠按钮（独立于侧栏，避免被 transform 带跑） ── -->
+<div class="sidebar-toggle" id="sidebarToggle" onclick="toggleMobileSidebar()">▼</div>
+
+<!-- ── 侧栏遮罩（手机端侧栏展开时半透明背景，点击关闭） ── -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleMobileSidebar()"></div>
 
 <!-- ── 左侧图标导航栏 ── -->
 <div class="glass-sidebar">
@@ -440,13 +446,20 @@
     <div style="flex:1;overflow-y:auto;padding:16px;" id="detailDrawerBody"></div>
 </div>
 
-<script src="src/js/common.js?v=5"></script>
-<script src="src/js/finance.js?v=5"></script>
-<script src="src/js/risk.js?v=5"></script>
-<script src="src/js/macro.js?v=5"></script>
-<script src="src/js/watchlist.js?v=5"></script>
-  <link rel="stylesheet" href="src/styles/mouse-agent.css?v=5">
-  <script src="src/js/mouse-agent.js?v=5"></script>
+<script src="src/js/common.js?v=7"></script>
+<script src="src/js/finance.js?v=6"></script>
+<script src="src/js/finance-zygc.js?v=6"></script>
+<script src="src/js/finance-charts.js?v=6"></script>
+<script src="src/js/finance-ai.js?v=6"></script>
+<script src="src/js/risk.js?v=6"></script>
+<script src="src/js/risk-pool.js?v=6"></script>
+<script src="src/js/risk-analysis.js?v=6"></script>
+<script src="src/js/macro.js?v=6"></script>
+<script src="src/js/watchlist-core.js?v=7"></script>
+<script src="src/js/watchlist-analysis.js?v=7"></script>
+<script src="src/js/watchlist-diary.js?v=7"></script>
+  <link rel="stylesheet" href="src/styles/mouse-agent.css?v=7">
+  <script src="src/js/mouse-agent.js?v=6"></script>
   <mouse-assistant></mouse-assistant>
 </body>
 </html>
