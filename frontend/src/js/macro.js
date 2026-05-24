@@ -48,7 +48,13 @@ async function fetchMacroRiskTimeline(refresh = false) {
         if (data.error) throw new Error(data.error);
         macroData = data;
         if (data.cache_status === 'no_cache') {
-            container.innerHTML = `<div class="macro-error">暂无数据，请点击刷新获取最新宏观风险数据</div>`;
+            container.innerHTML = `
+                <div class="macro-empty-state">
+                    <div class="macro-empty-icon">🌐</div>
+                    <div class="macro-empty-text">暂无宏观风险数据</div>
+                    <div class="macro-empty-sub">需要从多个数据源抓取并经 AI 分析，首次加载约需 1-2 分钟</div>
+                    <button class="macro-fetch-btn" onclick="fetchMacroRiskTimeline(true)">🔄 立即获取数据</button>
+                </div>`;
             return;
         }
         renderMacroView();
@@ -261,5 +267,11 @@ function escapeStr(s) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 document.addEventListener('DOMContentLoaded', () => {
-    fetchMacroRiskTimeline(false);
+    // 先尝试读缓存，若无缓存则在后台静默开始更新
+    fetchMacroRiskTimeline(false).then(() => {
+        if (macroData && macroData.cache_status === 'no_cache') {
+            // 静默触发后台更新，用户主动点按钮时会更快拿到数据
+            fetch('/api/macro/risk-timeline?refresh=true&background=true').catch(() => {});
+        }
+    });
 });
