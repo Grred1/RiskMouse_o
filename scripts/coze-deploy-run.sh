@@ -9,5 +9,5 @@ cd "$PROJECT_DIR"
 export PORT=5000
 export LLM_PROVIDER=coze
 
-# 启动 FastAPI 服务
-exec uvicorn backend.app.main:app --host 0.0.0.0 --port 5000
+# 启动 FastAPI 服务（通过 python -m 确保模块可访问）
+exec python -m uvicorn backend.app.main:app --host 0.0.0.0 --port 5000
