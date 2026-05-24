@@ -20,14 +20,11 @@ import time
 
 import requests
 
-# ── 默认配置（从 .env 读取） ────────────────────────────────────
-COZE_API_URL = os.environ.get(
-    "COZE_API_URL",
-    "https://xks6nwtnyr.coze.site/stream_run",
-)
-COZE_BEARER_TOKEN = os.environ.get("COZE_BEARER_TOKEN", "")
-COZE_SESSION_ID = os.environ.get("COZE_SESSION_ID", "Wo7hBi1xBAC9pCWEWbQkN")
-COZE_PROJECT_ID = os.environ.get("COZE_PROJECT_ID", "7643022710771204136")
+# ── 延迟读取环境变量（确保 load_dotenv 已执行） ────────────────────────
+def _get_env(key: str, default: str = "") -> str:
+    """每次调用时读取环境变量，确保 .env 已加载。"""
+    val = os.environ.get(key, default)
+    return val.strip() if val else default
 
 
 def call_coze_agent(
@@ -57,10 +54,10 @@ def call_coze_agent(
         >>> reply = call_coze_agent("2026-05-19 欧盟议会通过钢铁关税翻倍")
         >>> print(reply)
     """
-    url = api_url or COZE_API_URL
-    token = bearer_token or COZE_BEARER_TOKEN
-    sid = session_id or COZE_SESSION_ID
-    pid = project_id or COZE_PROJECT_ID
+    url = api_url or _get_env("COZE_API_URL", "https://xks6nwtnyr.coze.site/stream_run")
+    token = bearer_token or _get_env("COZE_BEARER_TOKEN")
+    sid = session_id or _get_env("COZE_SESSION_ID", "Wo7hBi1xBAC9pCWEWbQkN")
+    pid = project_id or _get_env("COZE_PROJECT_ID", "7643022710771204136")
 
     if not token:
         return ""
