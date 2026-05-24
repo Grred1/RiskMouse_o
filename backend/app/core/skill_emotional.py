@@ -16,6 +16,13 @@ from .config import load_skill_md
 
 # ── 情绪信号词 ────────────────────────────────────────────────────
 
+# 心理危机信号（最高优先级，必须先于其他情绪判断）
+_CRISIS_SIGNALS: list[str] = [
+    "想死", "好想死", "不想活", "不想活了", "活不下去",
+    "去死", "寻死", "轻生", "自杀", "结束生命",
+    "没意思活着", "活着没意思", "死了算了",
+]
+
 _PANIC_SIGNALS: list[str] = [
     "慌", "怕", "恐慌", "要不要卖", "马上卖", "割肉", "扛不住",
     "跌停", "亏了", "完了", "崩了", "跑路", "清仓", "暴跌",
@@ -33,8 +40,11 @@ _GREED_SIGNALS: list[str] = [
 def detect_emotion(question: str) -> str:
     """
     识别用户情绪类型。
-    返回: "panic" | "greed" | "neutral"
+    返回: "crisis" | "panic" | "greed" | "neutral"
+    crisis 优先级最高，必须先检测。
     """
+    if any(s in question for s in _CRISIS_SIGNALS):
+        return "crisis"
     if any(s in question for s in _PANIC_SIGNALS):
         return "panic"
     if any(s in question for s in _GREED_SIGNALS):
@@ -56,7 +66,10 @@ def emotional_first_aid(question: str) -> str:
     """
     emotion = detect_emotion(question)
 
-    if emotion == "panic":
+    if emotion == "crisis":
+        content = load_skill_md("emotional_crisis")
+        label = "[🆘 心理危机响应]"
+    elif emotion == "panic":
         content = load_skill_md("emotional_panic")
         label = "[🆘 情绪急救 · 恐慌模式]"
     elif emotion == "greed":

@@ -15,7 +15,7 @@ def _fetch_cache_summary() -> tuple[str, str]:
     agents = list_agents()
     cache_lines = []
     for a in agents:
-        cache_lines.append(f"  - {a['name']}: {a['description']}")
+        cache_lines.append(f"  - {a['description']}")
     agent_list = "\n".join(cache_lines) if cache_lines else "  (暂无可用 Agent)"
 
     keys = [
@@ -39,7 +39,7 @@ def _build_super_agent_inputs(inputs: dict) -> dict:
     question = inputs.get("question", "")
     tool_context = inputs.get("tool_context", "")
     has_skill = bool(tool_context)
-    length_instruction = "用 250 字以内回答，" if has_skill else "用 150 字以内回答，"
+    length_instruction = "用 400 字以内回答，" if has_skill else "用 150 字以内回答，"
 
     return {
         "question": question,
