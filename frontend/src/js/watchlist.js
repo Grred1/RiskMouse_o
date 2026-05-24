@@ -2,8 +2,15 @@
 let watchlistStocks = [];   // 持久化列表（来自服务端）
 let pendingCodes = [];       // 待添加临时列表
 let assessmentResults = {};  // { code: detailApiResponse }，内存，刷新后清空
-const DIARY_KEY = 'riskDiary';
 let carouselIndex = 0;
+
+// ── 认证工具 ─────────────────────────────────────────────────
+function getAuthHeaders() {
+    const token = localStorage.getItem('token');
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return headers;
+}
 
 // ── 初始化 ───────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -38,7 +45,7 @@ function initUploadZone() {
 // ── 持久化自选股 ─────────────────────────────────────────────
 async function loadWatchlist() {
     try {
-        const resp = await fetch('/api/watchlist/list');
+        const resp = await fetch('/api/watchlist/list', { headers: getAuthHeaders() });
         const data = await resp.json();
         watchlistStocks = data.stocks || [];
         renderWatchlistGrid();
@@ -56,7 +63,7 @@ async function addToWatchlist(code) {
     try {
         const resp = await fetch('/api/watchlist/add', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getAuthHeaders(),
             body: JSON.stringify({ code }),
         });
         const data = await resp.json();
@@ -72,11 +79,10 @@ async function addToWatchlist(code) {
 async function removeFromWatchlist(code) {
     await fetch('/api/watchlist/remove', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ code }),
     });
     delete assessmentResults[code];
-    cleanDiaryForStock(code);
     renderRatingList();
     renderStickyNotes();
     await loadWatchlist();
@@ -518,34 +524,44 @@ function goToSlide(index) {
 }
 
 // ── 风险日记 ─────────────────────────────────────────────────
-function loadDiary() {
-    try { return JSON.parse(localStorage.getItem(DIARY_KEY) || '[]'); } catch { return []; }
-}
-function saveDiary(entries) {
-    localStorage.setItem(DIARY_KEY, JSON.stringify(entries));
-}
-
-function addDiaryEntry(entry) {
-    const entries = loadDiary();
-    entries.unshift(entry);
-    saveDiary(entries);
-    renderDiaryList(document.getElementById('diaryFilterSelect')?.value || '');
+async function loadDiary() {
+    try {
+        const resp = await fetch('/api/watchlist/diary/list', { headers: getAuthHeaders() });
+        const data = await resp.json();
+        return data.diaries || [];
+    } catch { return []; }
 }
 
-function deleteDiaryEntry(id) {
-    saveDiary(loadDiary().filter(e => e.id !== id));
-    renderDiaryList(document.getElementById('diaryFilterSelect')?.value || '');
+async function addDiaryEntry(entry) {
+    try {
+        await fetch('/api/watchlist/diary/add', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(entry),
+        });
+    } catch (e) {
+        console.error('addDiaryEntry error', e);
+    }
+    await renderDiaryList(document.getElementById('diaryFilterSelect')?.value || '');
 }
 
-function cleanDiaryForStock(code) {
-    saveDiary(loadDiary().filter(e => e.stockSymbol !== code));
-    renderDiaryList(document.getElementById('diaryFilterSelect')?.value || '');
+async function deleteDiaryEntry(id) {
+    try {
+        await fetch('/api/watchlist/diary/delete', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ id }),
+        });
+    } catch (e) {
+        console.error('deleteDiaryEntry error', e);
+    }
+    await renderDiaryList(document.getElementById('diaryFilterSelect')?.value || '');
 }
 
-function renderDiaryList(filterCode) {
+async function renderDiaryList(filterCode) {
     const container = document.getElementById('diaryListContainer');
     if (!container) return;
-    let entries = loadDiary();
+    let entries = await loadDiary();
     if (filterCode) entries = entries.filter(e => e.stockSymbol === filterCode);
     if (entries.length === 0) {
         container.innerHTML = '<div class="diary-empty">暂无日记记录</div>';
@@ -609,14 +625,13 @@ function prefillDiary(code, name) {
     }
 }
 
-function handleDiarySubmit() {
+async function handleDiarySubmit() {
     const symbol = document.getElementById('dStockSymbol').value.trim();
     const name = document.getElementById('dStockName').value.trim();
     if (!symbol) { alert('请先选择股票（从便利贴点击「记录日记」）'); return; }
     // 读取标签单选
     const tagRadio = document.querySelector('input[name="dTagRadio"]:checked');
     const entry = {
-        id: Date.now(),
         stockSymbol: symbol,
         stockName: name || symbol,
         date: document.getElementById('dDate').value,
@@ -626,7 +641,7 @@ function handleDiarySubmit() {
         userNote: document.getElementById('dUserNote').value.trim(),
         tag: tagRadio ? tagRadio.value : '',
     };
-    addDiaryEntry(entry);
+    await addDiaryEntry(entry);
     // 重置表单
     ['dStockSymbol','dStockName','dRiskScore','dSystemSuggestion','dUserNote'].forEach(id => {
         const el = document.getElementById(id);

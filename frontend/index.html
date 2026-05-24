@@ -47,7 +47,13 @@
             <h1>智能风控评测平台</h1>
             <div class="cyber-subtitle">INTELLIGENT RISK INTELLIGENCE DASHBOARD</div>
         </div>
-        <div class="cyber-header-right"></div>
+        <div class="cyber-header-right">
+            <div class="header-auth" id="headerAuth">
+                <span class="header-username" id="headerUsername" style="display:none;"></span>
+                <button class="header-logout-btn" id="headerLogoutBtn" style="display:none;">退出</button>
+                <button class="header-login-btn" id="headerLoginBtn">登录</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -445,6 +451,160 @@
 <script src="src/js/risk.js?v=5"></script>
 <script src="src/js/macro.js?v=5"></script>
 <script src="src/js/watchlist.js?v=5"></script>
+<script>
+// ── 登录状态管理 ──
+(function() {
+  const usernameEl = document.getElementById('headerUsername');
+  const logoutBtn = document.getElementById('headerLogoutBtn');
+  const loginBtn = document.getElementById('headerLoginBtn');
+
+  function updateUI() {
+    const t = localStorage.getItem('token');
+    const u = localStorage.getItem('user');
+    if (t && u) {
+      usernameEl.textContent = u;
+      usernameEl.style.display = '';
+      logoutBtn.style.display = '';
+      loginBtn.style.display = 'none';
+    } else {
+      usernameEl.style.display = 'none';
+      logoutBtn.style.display = 'none';
+      loginBtn.style.display = '';
+    }
+  }
+
+  logoutBtn.addEventListener('click', () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    updateUI();
+    location.reload();
+  });
+
+  loginBtn.addEventListener('click', () => {
+    // 在当前页面弹出登录弹窗
+    document.getElementById('authModal').classList.add('active');
+  });
+
+  updateUI();
+})();
+</script>
+
+<!-- ── 登录/注册弹窗 ── -->
+<div class="modal-overlay" id="authModal">
+  <div class="modal-box">
+    <button class="modal-close" id="authModalClose">&times;</button>
+    <div class="modal-title" id="authModalTitle">登录</div>
+    <div class="modal-sub" id="authModalSub">登录以使用自选股等个性化功能</div>
+    <div class="modal-field">
+      <label>用户名</label>
+      <input type="text" id="authUsernameInput" placeholder="请输入用户名" autocomplete="username" />
+    </div>
+    <div class="modal-field">
+      <label>密码</label>
+      <input type="password" id="authPasswordInput" placeholder="请输入密码" autocomplete="current-password" />
+    </div>
+    <button class="modal-btn primary" id="authSubmitBtn">登录</button>
+    <button class="modal-btn secondary" id="authToggleBtn">没有账号？去注册</button>
+    <div class="modal-error" id="authError"></div>
+    <div class="modal-success" id="authSuccess"></div>
+  </div>
+</div>
+
+<script>
+// ── 登录弹窗逻辑 ──
+(function() {
+  const authModal = document.getElementById('authModal');
+  const authModalTitle = document.getElementById('authModalTitle');
+  const authModalSub = document.getElementById('authModalSub');
+  const authUsernameInput = document.getElementById('authUsernameInput');
+  const authPasswordInput = document.getElementById('authPasswordInput');
+  const authSubmitBtn = document.getElementById('authSubmitBtn');
+  const authToggleBtn = document.getElementById('authToggleBtn');
+  const authError = document.getElementById('authError');
+  const authSuccess = document.getElementById('authSuccess');
+
+  let isLoginMode = true;
+
+  function showError(msg) {
+    authError.textContent = msg;
+    authError.classList.add('show');
+    authSuccess.classList.remove('show');
+  }
+  function showSuccess(msg) {
+    authSuccess.textContent = msg;
+    authSuccess.classList.add('show');
+    authError.classList.remove('show');
+  }
+  function hideMessages() {
+    authError.classList.remove('show');
+    authSuccess.classList.remove('show');
+  }
+
+  // 关闭弹窗
+  document.getElementById('authModalClose').addEventListener('click', () => {
+    authModal.classList.remove('active');
+  });
+  authModal.addEventListener('click', (e) => {
+    if (e.target === authModal) authModal.classList.remove('active');
+  });
+
+  authToggleBtn.addEventListener('click', () => {
+    isLoginMode = !isLoginMode;
+    hideMessages();
+    if (isLoginMode) {
+      authModalTitle.textContent = '登录';
+      authModalSub.textContent = '登录以使用自选股等个性化功能';
+      authSubmitBtn.textContent = '登录';
+      authToggleBtn.textContent = '没有账号？去注册';
+    } else {
+      authModalTitle.textContent = '注册';
+      authModalSub.textContent = '创建账号以使用全部功能';
+      authSubmitBtn.textContent = '注册';
+      authToggleBtn.textContent = '已有账号？去登录';
+    }
+  });
+
+  authSubmitBtn.addEventListener('click', async () => {
+    const username = authUsernameInput.value.trim();
+    const password = authPasswordInput.value.trim();
+    if (!username || !password) {
+      showError('请填写用户名和密码');
+      return;
+    }
+    hideMessages();
+    const endpoint = isLoginMode ? '/api/auth/login' : '/api/auth/register';
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showError(data.detail || '操作失败');
+        return;
+      }
+      if (isLoginMode) {
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', data.username);
+        authModal.classList.remove('active');
+        authUsernameInput.value = '';
+        authPasswordInput.value = '';
+        location.reload();
+      } else {
+        showSuccess('注册成功，请登录');
+        isLoginMode = true;
+        authModalTitle.textContent = '登录';
+        authModalSub.textContent = '登录以使用自选股等个性化功能';
+        authSubmitBtn.textContent = '登录';
+        authToggleBtn.textContent = '没有账号？去注册';
+      }
+    } catch (err) {
+      showError('网络错误，请稍后重试');
+    }
+  });
+})();
+</script>
   <link rel="stylesheet" href="src/styles/mouse-agent.css?v=5">
   <script src="src/js/mouse-agent.js?v=5"></script>
   <mouse-assistant></mouse-assistant>
