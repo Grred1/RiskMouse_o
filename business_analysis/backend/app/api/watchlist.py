@@ -114,6 +114,40 @@ def api_watchlist_add(data: dict):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/sparkline/{code}")
+def api_watchlist_sparkline(code: str):
+    """获取近20个交易日收盘价走势（当日缓存）"""
+    from datetime import timedelta
+    code = code.strip()
+    if not code.isdigit():
+        return {"prices": [], "is_up": None}
+    today = datetime.now().strftime("%Y%m%d")
+    cache_file = os.path.join(CACHE_DIR, f"sparkline_{code}_{today}.json")
+    if os.path.exists(cache_file):
+        try:
+            with open(cache_file, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    try:
+        start_date = (datetime.now() - timedelta(days=60)).strftime("%Y%m%d")
+        df = ak.stock_zh_a_hist(
+            symbol=code, period="daily",
+            start_date=start_date, end_date=today, adjust="qfq"
+        )
+        if df is None or df.empty:
+            result = {"prices": [], "is_up": None}
+        else:
+            prices = df["收盘"].tail(20).round(2).tolist()
+            is_up = len(prices) >= 2 and prices[-1] > prices[0]
+            result = {"prices": prices, "is_up": is_up}
+        with open(cache_file, "w") as f:
+            json.dump(result, f)
+        return result
+    except Exception:
+        return {"prices": [], "is_up": None}
+
+
 @router.post("/remove")
 def api_watchlist_remove(data: dict):
     """从自选股列表移除"""
@@ -153,7 +187,8 @@ def _generate_wordcloud(texts: list) -> str:
         wc = WordCloud(
             font_path=font_path,
             width=400, height=220,
-            background_color="white",
+            background_color=None,
+            mode="RGBA",
             max_words=60,
             collocations=False,
         )

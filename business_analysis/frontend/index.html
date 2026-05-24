@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>企业风控系统</title>
+    <title>智能风控评测平台</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     <link rel="stylesheet" href="src/styles/common.css?v=5">
     <link rel="stylesheet" href="src/styles/finance.css?v=5">
@@ -12,21 +12,49 @@
 </head>
 <body>
 
-<div class="header">
-    <h1>🛡️ 企业风控系统</h1>
-    <p>宏观日历 · 财报风险 · 风险挖掘</p>
-    <div class="nav-tabs">
-        <div class="nav-tab active" data-feature="macro" onclick="switchFeature('macro')">📅 宏观日历</div>
-        <div class="nav-tab" data-feature="finance" onclick="switchFeature('finance')">📊 财报风险</div>
-        <div class="nav-tab" data-feature="risk" onclick="switchFeature('risk')">📰 风险挖掘</div>
-        <div class="nav-tab" data-feature="watchlist" onclick="switchFeature('watchlist')">🛡️ 自选风控</div>
+<!-- ── 左侧图标导航栏 ── -->
+<div class="glass-sidebar">
+    <div class="sidebar-logo">🛡️</div>
+    <div class="sidebar-divider"></div>
+    <button class="sidebar-btn" id="sidebarMacro"     onclick="switchFeature('macro')"     title="宏观日历">
+        <span class="sidebar-btn-icon">📅</span>
+        <span class="sidebar-btn-label">宏观</span>
+    </button>
+    <button class="sidebar-btn active" id="sidebarWatchlist" onclick="switchFeature('watchlist')" title="自选风控">
+        <span class="sidebar-btn-icon">⭐</span>
+        <span class="sidebar-btn-label">自选</span>
+    </button>
+    <button class="sidebar-btn" id="sidebarFinance"   onclick="switchFeature('finance')"   title="财报风险">
+        <span class="sidebar-btn-icon">📊</span>
+        <span class="sidebar-btn-label">财报</span>
+    </button>
+    <button class="sidebar-btn" id="sidebarRisk"      onclick="switchFeature('risk')"      title="风险挖掘">
+        <span class="sidebar-btn-icon">📰</span>
+        <span class="sidebar-btn-label">挖掘</span>
+    </button>
+    <div class="sidebar-avatar">👤</div>
+</div>
+
+<!-- ── 顶部 Header（无 nav-tabs） ── -->
+<div class="cyber-header-bar">
+    <div class="cyber-header-top">
+        <div class="cyber-market-status">
+            <div class="cyber-status-dot"></div>
+            <span>实时市场</span>
+            <span id="cyberClock" style="font-size:11px;color:#64748b;margin-left:4px;"></span>
+        </div>
+        <div class="cyber-header-title">
+            <h1>智能风控评测平台</h1>
+            <div class="cyber-subtitle">INTELLIGENT RISK INTELLIGENCE DASHBOARD</div>
+        </div>
+        <div class="cyber-header-right"></div>
     </div>
 </div>
 
 <div class="container">
 
     <!-- ===== 宏观日历 ===== -->
-    <div class="feature-section active" id="feature-macro">
+    <div class="feature-section" id="feature-macro">
         <div class="panel">
             <h3>📅 宏观经济日历</h3>
             <div id="macroCalendarContent"></div>
@@ -52,13 +80,11 @@
 
         <div id="errorMsg" class="error-msg" style="display:none;"></div>
 
-        <!-- Loading Overlay -->
         <div id="loadingOverlay" class="loading-overlay" style="display:none;">
             <div class="spinner"></div>
             <span id="loadingText">加载中...</span>
         </div>
 
-        <!-- 股票信息 -->
         <div id="stockInfo" class="stock-info" style="display:none;">
             <div class="name"><span id="stockName"></span></div>
             <div class="meta"><span id="stockMeta"></span></div>
@@ -68,90 +94,86 @@
             </div>
         </div>
 
-        <!-- KPI 卡片 -->
         <div id="kpiGrid" class="kpi-grid" style="display:none;"></div>
 
-        <!-- 报告期选择器 -->
         <div id="reportSelector" class="report-selector" style="display:none;">
             <label>📅 报告期：</label>
             <select id="reportSelect" onchange="onReportChange()"></select>
         </div>
 
-        <!-- 主营构成 Tab 切换 -->
-        <div id="tabs" class="tabs" style="display:none;">
-            <div class="tab active" data-tab="industry" onclick="switchTab('industry')">🏭 按行业</div>
-            <div class="tab" data-tab="product" onclick="switchTab('product')">📦 按产品</div>
-            <div class="tab" data-tab="region" onclick="switchTab('region')">🌍 按地区</div>
+        <div id="zygcLayout" class="zygc-layout" style="display:none;">
+            <!-- 左侧竖向导航 -->
+            <div class="zygc-sidebar panel">
+                <div class="zygc-sidebar-label">分类维度</div>
+                <div class="zygc-nav-item active" data-tab="industry" onclick="switchTab('industry')">
+                    <span class="zygc-nav-icon">🏭</span>
+                    <span>按行业</span>
+                </div>
+                <div class="zygc-nav-item" data-tab="product" onclick="switchTab('product')">
+                    <span class="zygc-nav-icon">📦</span>
+                    <span>按产品</span>
+                </div>
+                <div class="zygc-nav-item" data-tab="region" onclick="switchTab('region')">
+                    <span class="zygc-nav-icon">🌍</span>
+                    <span>按地区</span>
+                </div>
+            </div>
+            <!-- 右侧内容区 -->
+            <div class="zygc-content">
+                <div class="tab-content active" id="tab-industry">
+                    <div class="panel zygc-panel">
+                        <h3>🏭 按行业分类</h3>
+                        <div class="zygc-body">
+                            <div class="zygc-table-wrap"><table id="table-industry"></table></div>
+                            <div id="chart-industry" class="zygc-chart-side"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="tab-content" id="tab-product">
+                    <div class="panel zygc-panel">
+                        <h3>📦 按产品分类</h3>
+                        <div class="zygc-body">
+                            <div class="zygc-table-wrap"><table id="table-product"></table></div>
+                            <div id="chart-product" class="zygc-chart-side"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="tab-content" id="tab-region">
+                    <div class="panel zygc-panel">
+                        <h3>🌍 按地区分类</h3>
+                        <div class="zygc-body">
+                            <div class="zygc-table-wrap"><table id="table-region"></table></div>
+                            <div id="chart-region" class="zygc-chart-side"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <!-- 主营构成内容 -->
-        <div id="mainContent" style="display:none;">
-            <div class="tab-content active" id="tab-industry">
-                <div class="panel">
-                    <h3>🏭 按行业分类</h3>
-                    <div class="table-wrap"><table id="table-industry"></table></div>
-                    <div id="chart-industry" class="chart-container"></div>
-                </div>
-            </div>
-            <div class="tab-content" id="tab-product">
-                <div class="panel">
-                    <h3>📦 按产品分类</h3>
-                    <div class="table-wrap"><table id="table-product"></table></div>
-                    <div id="chart-product" class="chart-container"></div>
-                </div>
-            </div>
-            <div class="tab-content" id="tab-region">
-                <div class="panel">
-                    <h3>🌍 按地区分类</h3>
-                    <div class="table-wrap"><table id="table-region"></table></div>
-                    <div id="chart-region" class="chart-container"></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 财务全景内容 -->
         <div id="financialContent" style="display:none;">
             <div id="finSectionHeader" class="sub-tabs" style="display:none;margin-top:20px;">
                 <div class="sub-tab active" data-tab="growth" onclick="switchSubTab('growth')">📈 增长分析</div>
                 <div class="sub-tab" data-tab="health" onclick="switchSubTab('health')">💪 健康分析</div>
             </div>
-
             <div class="sub-tab-content active" id="subtab-growth">
-                <div class="panel">
-                    <h3>📈 营收与利润趋势</h3>
-                    <div id="chart-revenue-trend" class="chart-container"></div>
+                <div class="fin-chart-grid fin-grid-2">
+                    <div class="panel fin-panel"><h3>📈 营收与利润趋势</h3><div id="chart-revenue-trend" class="chart-container"></div></div>
+                    <div class="panel fin-panel"><h3>📊 盈利能力趋势</h3><div id="chart-profitability" class="chart-container"></div></div>
                 </div>
-                <div class="panel">
-                    <h3>🔬 研发投入</h3>
-                    <div id="chart-rd" class="chart-container"></div>
-                </div>
-                <div class="panel">
-                    <h3>📉 费用率趋势</h3>
-                    <div id="chart-expense" class="chart-container"></div>
-                </div>
-                <div class="panel">
-                    <h3>🏗️ 资产扩张</h3>
-                    <div id="chart-asset-expansion" class="chart-container"></div>
-                </div>
-                <div class="panel">
-                    <h3>📊 盈利能力趋势</h3>
-                    <div id="chart-profitability" class="chart-container"></div>
+                <div class="fin-chart-grid fin-grid-3">
+                    <div class="panel fin-panel"><h3>🔬 研发投入</h3><div id="chart-rd" class="chart-container"></div></div>
+                    <div class="panel fin-panel"><h3>📉 费用率趋势</h3><div id="chart-expense" class="chart-container"></div></div>
+                    <div class="panel fin-panel"><h3>🏗️ 资产扩张</h3><div id="chart-asset-expansion" class="chart-container"></div></div>
                 </div>
             </div>
-
             <div class="sub-tab-content" id="subtab-health">
-                <div class="panel">
-                    <h3>📊 资产结构</h3>
-                    <div id="chart-balance" class="chart-container"></div>
-                </div>
-                <div class="panel">
-                    <h3>💰 现金流</h3>
-                    <div id="chart-cashflow" class="chart-container"></div>
+                <div class="fin-chart-grid fin-grid-2">
+                    <div class="panel fin-panel"><h3>📊 资产结构</h3><div id="chart-balance" class="chart-container"></div></div>
+                    <div class="panel fin-panel"><h3>💰 现金流</h3><div id="chart-cashflow" class="chart-container"></div></div>
                 </div>
             </div>
         </div>
 
-        <!-- AI 分析 -->
         <div id="aiSection" class="panel ai-section" style="display:none;">
             <div id="aiCombinedHeader" style="display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
                 <h3 style="margin:0;">📊 财务健康增长分析 <span class="badge ai-badge">BETA</span></h3>
@@ -168,59 +190,49 @@
 
     <!-- ===== 风险挖掘 ===== -->
     <div class="feature-section" id="feature-risk">
-        <div style="display:grid;grid-template-columns:400px 1fr;gap:20px;height:calc(100vh - 160px);">
-            <!-- 左侧：热门关注列表 -->
-            <div style="display:flex;flex-direction:column;">
+        <div class="risk-page-grid">
+            <div>
                 <div class="zt-toolbar">
                     <label>📅 日期：</label>
                     <input type="date" id="ztDateInput">
                     <span id="ztSummary" class="zt-summary"></span>
                 </div>
-
                 <div class="zt-error" id="ztError"></div>
-
-                <div class="panel" style="flex:1;overflow:hidden;display:flex;flex-direction:column;">
-                    <h3>📋 热门关注 <span style="font-size:12px;font-weight:400;color:#888;">（点击查看详情）</span></h3>
-                    <div id="ztFilters" style="display:none;margin-bottom:12px;">
-                        <select id="sourceFilter" onchange="filterRiskPool()" style="padding:4px 8px;border-radius:4px;border:1px solid #ddd;">
+                <div class="panel" style="flex:1;overflow:hidden;display:flex;flex-direction:column;margin-bottom:0;">
+                    <h3>📋 热门关注 <span style="font-size:12px;font-weight:400;color:#8fa3b8;">（点击查看详情）</span></h3>
+                    <div id="ztFilters" style="display:none;margin-bottom:10px;">
+                        <select id="sourceFilter" onchange="filterRiskPool()" class="zt-filters-select">
                             <option value="all">全部</option>
                             <option value="涨停">🟣涨停</option>
                             <option value="龙虎榜">🔥龙虎</option>
                         </select>
-                        <select id="industryFilter" onchange="filterRiskPool()" style="padding:4px 8px;border-radius:4px;border:1px solid #ddd;margin-left:8px;">
+                        <select id="industryFilter" onchange="filterRiskPool()" class="zt-filters-select">
                             <option value="all">全部行业</option>
                         </select>
                     </div>
-                    <div style="flex:1;overflow-y:auto;" id="ztListContainer">
-                        <table style="width:100%;">
-                            <thead>
-                                <tr>
-                                    <th style="text-align:left;">代码</th>
-                                    <th style="text-align:left;">名称</th>
-                                    <th style="text-align:center;">来源</th>
-                                </tr>
-                            </thead>
+                    <div style="flex:1;overflow-y:auto;min-height:0;" id="ztListContainer">
+                        <table class="zt-table">
+                            <thead><tr>
+                                <th>代码</th>
+                                <th>名称</th>
+                                <th style="text-align:center;">来源</th>
+                            </tr></thead>
                             <tbody id="ztTableBody">
-                                <tr><td colspan="3" style="text-align:center;color:#999;padding:30px;">加载中...</td></tr>
+                                <tr><td colspan="3" style="text-align:center;color:#8fa3b8;padding:30px;">加载中...</td></tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
             </div>
-
-            <!-- 右侧：详情面板 -->
-            <div class="panel" id="ztDetailPanel" style="height:100%;overflow-y:auto;">
-                <div id="ztDetailLoading" class="loading-overlay" style="display:flex;">
-                    <div class="spinner"></div>
-                    <div style="margin-left:12px;">正在加载...</div>
+            <div class="zt-detail-panel" id="ztDetailPanel">
+                <div id="ztDetailLoading" class="zt-detail-loading">
+                    正在加载...
                 </div>
-                <div id="ztDetailContent" style="display:none;">
-                    <h3 id="ztDetailHeader" style="color:#c0392b;">-</h3>
-                    <div style="margin-top:16px;">
-                        <div style="background:#f7f8fa;border-radius:10px;padding:16px;">
-                            <h4 style="font-size:14px;margin-bottom:8px;color:#555;">📰 市场关注点</h4>
-                            <div id="ztLogicArea" style="font-size:13px;line-height:1.7;color:#333;"></div>
-                        </div>
+                <div id="ztDetailContent" class="zt-detail-content" style="display:none;">
+                    <h3 id="ztDetailHeader">-</h3>
+                    <div class="zt-info-block">
+                        <div class="zt-block-title">📰 市场关注点</div>
+                        <div id="ztLogicArea" class="zt-block-body"></div>
                     </div>
                     <div style="background:linear-gradient(135deg,#fff5f5,#fff0f0);border-radius:10px;padding:16px;margin-top:12px;border:1px solid #ffd7d7;">
                         <h4 style="font-size:14px;margin-bottom:8px;color:#c0392b;">风险挖掘</h4>
@@ -234,133 +246,200 @@
 </div>
 
     <!-- ===== 自选风控 ===== -->
-    <div class="feature-section" id="feature-watchlist">
-        <div class="watchlist-layout">
+    <div class="feature-section active" id="feature-watchlist">
+        <div class="cyber-three-col">
 
-            <!-- 持久化自选股 -->
-            <div class="panel">
-                <h3>⭐ 我的自选股 <span style="font-size:12px;font-weight:400;color:#90a4ae;">点击卡片查看风险详情</span>
-                    <button class="assess-btn" onclick="assessAll()">一键测评</button>
-                </h3>
-                <div class="assess-status" id="assessStatus"></div>
-                <div class="saved-grid" id="savedGrid">
-                    <div class="saved-empty">暂无自选股，请在下方添加</div>
-                </div>
-            </div>
+          <!-- ★ 左+中 玻璃底层 ★ -->
+          <div class="panel-group panel-group-lc">
 
-            <!-- 添加区域 -->
-            <div class="watchlist-input-area">
-                <!-- 截图上传 -->
-                <div class="panel">
-                    <h3>📷 上传自选股截图</h3>
-                    <div class="upload-zone" id="uploadZone">
-                        <div class="upload-icon">📁</div>
-                        <div class="upload-hint">点击或拖拽图片到此处<br><strong>AI 自动识别股票代码</strong></div>
-                        <input type="file" id="imageInput" accept="image/*" style="display:none;">
-                        <img id="uploadPreview" class="upload-preview" alt="预览">
+            <!-- ── 左侧：自选股管理 ── -->
+            <div class="cyber-left-panel">
+
+                <!-- 我的自选股 -->
+                <div class="cyber-card cyber-watchlist-card">
+                    <div class="cyber-card-header">
+                        <span class="cyber-section-icon">◈</span>
+                        我的自选股
+                        <span class="cyber-limit-badge">最多10只</span>
+                        <button class="assess-btn" onclick="assessAll()">一键测评</button>
                     </div>
-                    <div class="parsing-hint" id="parsingHint"></div>
-                    <button id="ocrAddBtn" class="ocr-add-btn" style="display:none;">添加全部到自选</button>
+                    <div class="assess-status" id="assessStatus"></div>
+                    <div class="saved-grid" id="savedGrid">
+                        <div class="saved-card saved-card-empty" style="grid-column:1/-1;">
+                            <div class="saved-card-empty-inner"><span class="saved-card-empty-icon">+</span><span class="saved-card-empty-hint">添加自选</span></div>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- 手动输入 -->
-                <div class="panel">
-                    <h3>✏️ 手动添加股票</h3>
-                    <div class="manual-input-panel">
-                        <div class="manual-input-row">
-                            <input type="text" id="manualInput" placeholder="输入6位股票代码，支持逗号分隔批量输入"
-                                onkeydown="handleManualInput(event)">
-                            <button onclick="handleManualInput(null)">添加</button>
+                <!-- 添加自选股 -->
+                <div class="cyber-card">
+                    <div class="cyber-card-header">
+                        <span class="cyber-section-icon">⊕</span>
+                        添加自选股
+                    </div>
+
+                    <!-- 截图 OCR -->
+                    <div class="cyber-sub-section">
+                        <div class="cyber-sub-title">截图 OCR 上传</div>
+                        <div class="upload-zone" id="uploadZone">
+                            <div class="upload-icon">📷</div>
+                            <div class="upload-hint">拖拽或点击上传截图<br><strong>支持 PNG / JPG / BMP</strong></div>
+                            <input type="file" id="imageInput" accept="image/*" style="display:none;">
+                            <img id="uploadPreview" class="upload-preview" alt="预览">
                         </div>
-                        <div>
-                            <div style="font-size:13px;color:#78909c;margin-bottom:6px;">待添加列表：</div>
+                        <div class="parsing-hint" id="parsingHint"></div>
+                        <button id="ocrAddBtn" class="ocr-add-btn" style="display:none;">添加全部到自选</button>
+                    </div>
+
+                    <!-- 手动输入 -->
+                    <div class="cyber-sub-section">
+                        <div class="cyber-sub-title">手动输入</div>
+                        <div class="manual-input-panel">
+                            <div class="manual-input-row">
+                                <input type="text" id="manualInput"
+                                    placeholder="输入股票代码，支持逗号/空格分隔"
+                                    onkeydown="handleManualInput(event)">
+                                <button onclick="handleManualInput(null)">添加</button>
+                            </div>
+                            <div style="font-size:11px;color:#64748b;margin-bottom:5px;">待添加：</div>
                             <div class="stock-tags" id="stockTags">
                                 <span class="stock-tags-empty">暂无待添加股票</span>
                             </div>
+                            <span class="watchlist-error" id="watchlistError"></span>
                         </div>
-                        <span class="watchlist-error" id="watchlistError"></span>
                     </div>
                 </div>
+
             </div>
 
-        </div>
+            <!-- ── 中间：排行榜 + 便利贴 ── -->
+            <div class="cyber-center-panel">
 
-        <!-- 风险评级列表 -->
-        <div class="panel" id="ratingListSection" style="display:none;">
-            <h3>📊 风险评级排行</h3>
-            <div id="ratingListContainer"></div>
-        </div>
+                <!-- 风险评级排行榜（始终显示，空状态有提示） -->
+                <div class="cyber-card" id="ratingListSection">
+                    <div class="cyber-card-header">
+                        <span class="cyber-section-icon">▣</span>
+                        风险评级排行榜
+                    </div>
+                    <div id="ratingListContainer">
+                        <div class="rating-empty">点击「一键测评」生成排行榜</div>
+                    </div>
+                </div>
 
-        <!-- 风险便利贴 -->
-        <div class="panel" id="stickyNotesSection" style="display:none;">
-            <h3>📝 风险便利贴</h3>
-            <div class="sticky-notes-grid" id="stickyNotesContainer"></div>
-        </div>
+                <!-- 风险便利贴 轮播（始终显示，空状态有提示） -->
+                <div class="cyber-card" id="stickyNotesSection">
+                    <div class="cyber-card-header">
+                        <span class="cyber-section-icon">⬡</span>
+                        风险便利贴
+                    </div>
+                    <div class="sticky-carousel-wrapper">
+                        <button class="carousel-btn" onclick="scrollCarousel(-1)">&#8249;</button>
+                        <div class="sticky-carousel-viewport">
+                            <div class="sticky-carousel-track" id="stickyNotesContainer">
+                                <div class="sticky-note-empty">测评后将生成风险便利贴</div>
+                            </div>
+                        </div>
+                        <button class="carousel-btn" onclick="scrollCarousel(1)">&#8250;</button>
+                    </div>
+                    <div class="carousel-dots" id="carouselDots"></div>
+                </div>
 
-        <!-- 风险日记 -->
-        <div class="panel" id="riskDiarySection">
-            <h3>📔 风险日记</h3>
-            <div class="diary-filter-bar">
-                <label>按股票筛选：</label>
-                <select id="diaryFilterSelect" onchange="renderDiaryList(this.value)">
-                    <option value="">全部</option>
-                </select>
             </div>
-            <div id="diaryListContainer"></div>
-            <div class="diary-form-toggle">
-                <button onclick="toggleDiaryForm()">+ 新增日记</button>
-            </div>
-            <div class="diary-form" id="diaryForm" style="display:none;">
-                <input type="hidden" id="dStockSymbol">
-                <div class="diary-form-row">
-                    <label>股票</label>
-                    <input id="dStockName" placeholder="股票名称" readonly>
-                    <span id="dStockCode" style="font-size:12px;color:#90a4ae;margin-left:6px;"></span>
-                </div>
-                <div class="diary-form-row">
-                    <label>日期</label>
-                    <input type="date" id="dDate">
-                </div>
-                <div class="diary-form-row">
-                    <label>风险等级</label>
-                    <select id="dRiskLevel">
-                        <option value="低">低风险</option>
-                        <option value="中">中风险</option>
-                        <option value="高">高风险</option>
-                    </select>
-                </div>
-                <div class="diary-form-row">
-                    <label>综合评分</label>
-                    <input type="number" id="dRiskScore" min="1" max="5" placeholder="1-5">
-                </div>
-                <div class="diary-form-row">
-                    <label>系统建议</label>
-                    <textarea id="dSystemSuggestion" rows="2" placeholder="AI 解读或系统建议"></textarea>
-                </div>
-                <div class="diary-form-row">
-                    <label>我的备注</label>
-                    <textarea id="dUserNote" rows="2" placeholder="记录你的想法..."></textarea>
-                </div>
-                <div class="diary-form-row">
-                    <label>标签</label>
-                    <input id="dTag" placeholder="如：持仓观察、重点关注">
-                </div>
-                <button class="diary-submit-btn" onclick="handleDiarySubmit()">保存日记</button>
-            </div>
-        </div>
 
+          </div><!-- /panel-group-lc -->
+
+          <!-- ★ 右侧 玻璃底层 ★ -->
+          <div class="panel-group panel-group-r">
+            <!-- ── 右侧：详情 + 日记 ── -->
+            <div class="cyber-right-panel">
+
+                <!-- 股票风险详情 -->
+                <div class="cyber-card cyber-detail-panel">
+                    <div class="cyber-card-header" id="cyberDetailHeader">
+                        <span class="cyber-section-icon">◉</span>
+                        股票风险详情
+                    </div>
+                    <div class="drawer-body" id="drawerBody">
+                        <div class="cyber-placeholder">
+                            <div class="cyber-placeholder-icon">◈</div>
+                            <div>点击自选股卡片<br>查看风险详情</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 风险日记（左右分栏：列表 | 表单） -->
+                <div class="cyber-card" id="riskDiarySection">
+                    <div class="cyber-card-header">
+                        <span class="cyber-section-icon">◧</span>
+                        风险日记
+                        <select id="diaryFilterSelect" class="cyber-select"
+                            onchange="renderDiaryList(this.value)" style="margin-left:auto;">
+                            <option value="">全部类型</option>
+                        </select>
+                    </div>
+                    <div class="diary-split-body">
+                        <!-- 左：日记列表 -->
+                        <div class="diary-list-col">
+                            <div id="diaryListContainer"></div>
+                        </div>
+                        <!-- 右：表单（始终可见） -->
+                        <div class="diary-form-col">
+                            <div class="diary-form-inner" id="diaryFormInner">
+                                <div class="diary-form-title">+ 新增记录</div>
+                                <input type="hidden" id="dStockSymbol">
+                                <div class="diary-field-row">
+                                    <input id="dStockName" placeholder="选择股票" readonly class="diary-field-input">
+                                    <span id="dStockCode" class="diary-stock-code"></span>
+                                </div>
+                                <div class="diary-field-row">
+                                    <select id="dRiskLevel" class="diary-field-input">
+                                        <option value="低">低风险</option>
+                                        <option value="中">中风险</option>
+                                        <option value="高">高风险</option>
+                                    </select>
+                                    <input type="date" id="dDate" class="diary-field-input" style="flex:1.2;">
+                                </div>
+                                <div class="diary-field-row">
+                                    <textarea id="dSystemSuggestion" rows="2" placeholder="系统建议..." class="diary-field-input"></textarea>
+                                </div>
+                                <div class="diary-field-row">
+                                    <textarea id="dUserNote" rows="2" placeholder="我的备注..." class="diary-field-input"></textarea>
+                                </div>
+                                <input type="hidden" id="dRiskScore">
+                                <!-- 标签选择 -->
+                                <div class="diary-tag-group">
+                                    <label class="diary-tag-chip diary-tag-risk-chip">
+                                        <input type="radio" name="dTagRadio" value="风险">
+                                        <span>⚠️ 风险</span>
+                                    </label>
+                                    <label class="diary-tag-chip diary-tag-watch-chip">
+                                        <input type="radio" name="dTagRadio" value="关注">
+                                        <span>👁 关注</span>
+                                    </label>
+                                    <label class="diary-tag-chip diary-tag-chance-chip">
+                                        <input type="radio" name="dTagRadio" value="机会">
+                                        <span>💡 机会</span>
+                                    </label>
+                                </div>
+                                <button class="diary-submit-btn" onclick="handleDiarySubmit()">保存日记</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+          </div><!-- /panel-group-r -->
+        </div>
     </div>
 
-</div>
-
-<!-- 详情抽屉（固定定位，独立于容器外） -->
+<!-- 旧浮动抽屉（其他功能区保留，watchlist 不使用） -->
 <div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
 <div class="detail-drawer" id="detailDrawer">
-    <div class="drawer-header">
-        <span>股票风险详情</span>
+    <div class="drawer-header" style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid rgba(56,189,248,.2);">
+        <span style="color:#22d3ee;font-size:14px;font-weight:600;">股票风险详情</span>
         <button class="drawer-close-btn" onclick="closeDrawer()">✕</button>
     </div>
-    <div class="drawer-body" id="drawerBody"></div>
+    <div style="flex:1;overflow-y:auto;padding:16px;" id="detailDrawerBody"></div>
 </div>
 
 <script src="src/js/common.js?v=5"></script>

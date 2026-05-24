@@ -374,102 +374,67 @@ function renderGubaData(container, data) {
         return;
     }
 
-    const keywords = data.keywords || [];
+    const keywords   = data.keywords    || [];
     const postTitles = data.post_titles || [];
-    const stats = data.stats || {};
-    const analysis = data.analysis || '';
-    const rank = data.rank || {};
+    const stats      = data.stats       || {};
+    const analysis   = data.analysis    || '';
+    const rank       = data.rank        || {};
+    const total      = stats.total_data_points || 0;
 
-    const totalPoints = stats.total_data_points || 0;
+    // 统计数字小块（紧凑单行）
+    const statItems = [
+        { val: stats.keyword_count, label: '热门关键词', color: '#4f8fdc' },
+        { val: stats.post_count,    label: '帖子标题',   color: '#f97316' },
+        { val: stats.relate_count,  label: '相关股票',   color: '#22c55e' },
+        { val: stats.rank_days,     label: '排名天数',    color: '#8b5cf6' },
+    ].filter(s => s.val > 0);
 
-    let html = '';
+    const statHtml = statItems.map(s =>
+        `<div style="text-align:center;min-width:52px;"><div style="font-size:18px;font-weight:700;color:${s.color};line-height:1.2;">${s.val}</div><div style="font-size:10px;color:#8fa3b8;margin-top:2px;">${s.label}</div></div>`
+    ).join('');
 
-    // 数据统计可视化
-    html += `<div style="margin-bottom:12px;padding:12px;background:#f0f4ff;border-radius:8px;border:1px solid #d0e0ff;">`;
-    html += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-        <span style="font-size:14px;font-weight:600;color:#2952a3;">📊 股吧数据分析</span>
-        <span style="font-size:12px;color:#888;">共挖掘 <strong style="color:#c0392b;font-size:16px;">${totalPoints}</strong> 条数据</span>
-    </div>`;
-    html += `<div style="display:flex;gap:16px;flex-wrap:wrap;">`;
-    if (stats.keyword_count > 0) {
-        html += `<div style="text-align:center;min-width:60px;">
-            <div style="font-size:20px;font-weight:700;color:#2952a3;">${stats.keyword_count}</div>
-            <div style="font-size:11px;color:#888;">热门关键词</div>
-        </div>`;
-    }
-    if (stats.post_count > 0) {
-        html += `<div style="text-align:center;min-width:60px;">
-            <div style="font-size:20px;font-weight:700;color:#e67e22;">${stats.post_count}</div>
-            <div style="font-size:11px;color:#888;">帖子标题</div>
-        </div>`;
-    }
-    if (stats.relate_count > 0) {
-        html += `<div style="text-align:center;min-width:60px;">
-            <div style="font-size:20px;font-weight:700;color:#27ae60;">${stats.relate_count}</div>
-            <div style="font-size:11px;color:#888;">相关股票</div>
-        </div>`;
-    }
-    if (stats.rank_days > 0) {
-        html += `<div style="text-align:center;min-width:60px;">
-            <div style="font-size:20px;font-weight:700;color:#8e44ad;">${stats.rank_days}</div>
-            <div style="font-size:11px;color:#888;">排名天数</div>
-        </div>`;
-    }
-    html += `</div></div>`;
+    let html = `<div style="margin-bottom:10px;padding:10px 12px;background:rgba(79,143,220,0.07);border:1px solid rgba(79,143,220,0.18);border-radius:10px;">` +
+        `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="font-size:13px;font-weight:700;color:#1e3252;">📊 股吧数据分析</span><span style="font-size:11px;color:#8fa3b8;">共挖掘 <strong style="color:#ef4444;">${total}</strong> 条数据</span></div>` +
+        `<div style="display:flex;gap:12px;flex-wrap:wrap;">${statHtml}</div>` +
+        `</div>`;
 
     // 人气排名
     if (rank.rank) {
-        html += `<div style="margin-bottom:8px;font-size:13px;color:#555;">
-            人气排名: <strong>第${rank.rank}名</strong>
-            ${rank.rankChange ? `（较昨日 ${rank.rankChange > 0 ? '↑' : '↓'} ${rank.rankChange}）` : ''}
-            共 ${rank.marketAllCount || '--'} 只股票参评
-        </div>`;
+        const changeStr = rank.rankChange
+            ? `（较昨日 ${rank.rankChange > 0 ? '↑' : '↓'}${Math.abs(rank.rankChange)}）`
+            : '';
+        html += `<div style="margin-bottom:8px;font-size:12px;color:#4a6080;">人气排名：<strong style="color:#1e3252;">第${rank.rank}名</strong>${changeStr}，共 ${rank.marketAllCount || '--'} 只参评</div>`;
     }
 
     // 热门关键词
     if (keywords.length > 0) {
-        html += `<div style="margin-bottom:8px;">
-            <span style="font-size:13px;font-weight:600;color:#555;">热门概念：</span>`;
         const maxHot = Math.max(...keywords.map(k => k.hotness), 1);
-        keywords.forEach(kw => {
-            const intensity = Math.round((kw.hotness / maxHot) * 5);
-            const colors = ['#e8ecf1','#d5e5ff','#a8c8ff','#7aaaff','#4d8cff','#2952a3'];
-            html += `<span style="display:inline-block;padding:2px 10px;margin:2px 4px;border-radius:12px;
-                font-size:12px;background:${colors[intensity] || colors[0]};color:${intensity > 3 ? '#fff' : '#555'};
-                white-space:nowrap;">${kw.keyword} ${kw.hotness}</span>`;
-        });
-        html += `</div>`;
+        const chips = keywords.map(kw => {
+            const t = Math.round((kw.hotness / maxHot) * 5);
+            const bg = ['rgba(148,163,184,0.12)','rgba(79,143,220,0.10)','rgba(79,143,220,0.20)','rgba(79,143,220,0.35)','rgba(53,120,201,0.55)','rgba(53,120,201,0.80)'][t] || 'rgba(148,163,184,0.12)';
+            const fg = t > 3 ? '#fff' : '#1e3252';
+            return `<span style="display:inline-block;padding:2px 9px;margin:2px 3px;border-radius:10px;font-size:11px;background:${bg};color:${fg};white-space:nowrap;">${kw.keyword} ${kw.hotness}</span>`;
+        }).join('');
+        html += `<div style="margin-bottom:8px;"><span style="font-size:12px;font-weight:600;color:#4a6080;">热门概念：</span>${chips}</div>`;
     }
 
     // 帖子标题（可点击跳转）
     if (postTitles.length > 0) {
-        html += `<details style="margin-bottom:8px;font-size:12px;">
-            <summary style="cursor:pointer;color:#555;font-weight:600;">📝 最新股吧热帖（${postTitles.length}条）</summary>
-            <div style="margin-top:4px;max-height:150px;overflow-y:auto;background:#f9f9f9;padding:8px;border-radius:6px;">`;
-        postTitles.forEach(p => {
+        const rows = postTitles.map(p => {
             const t = typeof p === 'string' ? p : p.title;
             const u = typeof p === 'string' ? '' : p.url;
             if (u) {
-                html += `<div style="padding:3px 0;border-bottom:1px solid #eee;">
-                    <a href="${u}" target="_blank" rel="noopener noreferrer" style="color:#2952a3;text-decoration:none;display:block;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${t}</a>
-                </div>`;
-            } else {
-                html += `<div style="padding:3px 0;border-bottom:1px solid #eee;color:#444;">${t}</div>`;
+                return `<div style="padding:3px 0;border-bottom:1px solid rgba(148,163,184,0.12);font-size:12px;"><a href="${u}" target="_blank" rel="noopener noreferrer" style="color:#3578c9;text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${t}</a></div>`;
             }
-        });
-        html += `</div></details>`;
+            return `<div style="padding:3px 0;border-bottom:1px solid rgba(148,163,184,0.12);font-size:12px;color:#4a6080;">${t}</div>`;
+        }).join('');
+        html += `<details style="margin-bottom:8px;"><summary style="cursor:pointer;font-size:12px;font-weight:600;color:#4a6080;">📝 最新股吧热帖（${postTitles.length}条）</summary><div style="margin-top:5px;max-height:120px;overflow-y:auto;background:rgba(248,250,252,0.70);padding:8px 10px;border-radius:8px;border:1px solid rgba(148,163,184,0.14);">${rows}</div></details>`;
     }
 
-    // 市场观点总结（可折叠）
+    // AI 舆情分析（可展开/收起）
     if (analysis) {
         const truncated = analysis.length > 120 ? analysis.slice(0, 120) + '...' : analysis;
-        html += `<div style="margin-top:8px;padding:10px;background:#fef9e7;border-radius:8px;border:1px solid #fdebd0;">
-            <div style="font-size:13px;font-weight:600;color:#e67e22;margin-bottom:4px;cursor:pointer;" onclick="toggleAnalysis(this)">
-                📊 市场观点总结 <span style="font-size:11px;color:#aaa;">（点击展开/收起）</span>
-            </div>
-            <div class="guba-analysis-short" style="font-size:13px;line-height:1.7;color:#444;white-space:pre-wrap;">${truncated}</div>
-            <div class="guba-analysis-full" style="font-size:13px;line-height:1.7;color:#444;white-space:pre-wrap;display:none;">${analysis}</div>
-        </div>`;
+        html += `<div style="padding:10px 12px;background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.22);border-radius:10px;"><div style="font-size:12px;font-weight:700;color:#92400e;margin-bottom:5px;cursor:pointer;" onclick="toggleAnalysis(this)">🤖 AI 股吧舆情分析 <span style="font-size:10px;color:#b45309;">（点击展开/收起）</span></div><div class="guba-analysis-short" style="font-size:12px;line-height:1.7;color:#4a6080;white-space:pre-wrap;">${truncated}</div><div class="guba-analysis-full" style="font-size:12px;line-height:1.7;color:#4a6080;white-space:pre-wrap;display:none;">${analysis}</div></div>`;
     }
 
     container.innerHTML = html;
