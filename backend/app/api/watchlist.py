@@ -13,7 +13,7 @@ import time
 from datetime import datetime
 
 import akshare as ak
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 
 from ..core import (
     CACHE_DIR,
@@ -27,6 +27,7 @@ from ..core import (
 )
 from .. import risk_engine
 from .. import db as watchlist_db
+from ..auth import get_current_user, get_optional_user
 
 router = APIRouter(prefix="/api/watchlist", tags=["自选风控"])
 
@@ -45,6 +46,32 @@ _VISION_PROMPT = (
     "仅输出代码列表，用英文逗号分隔，不要包含其他文字。"
     "如果没有找到任何股票代码，请输出：无"
 )
+
+
+def _extract_codes_via_deepseek_vision(image_base64: str, mime_type: str = "image/png") -> list[str]:
+    """用 DeepSeek Vision API 从截图中提取6位股票代码"""
+    try:
+        from ..core.llm import _get_deepseek_client
+        client = _get_deepseek_client()
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{image_base64}"}},
+                    {"type": "text", "text": _VISION_PROMPT},
+                ],
+            }],
+            max_tokens=200,
+            temperature=0,
+        )
+        raw = response.choices[0].message.content or ""
+        if "无" in raw or not raw.strip():
+            return []
+        codes = re.findall(r'\b\d{6}\b', raw)
+        return [c for c in dict.fromkeys(codes) if c[0] in ('0', '3', '6', '8', '4')]
+    except Exception:
+        return []
 
 
 def _extract_codes_from_image(image_base64: str, mime_type: str = "image/png") -> tuple[list, str]:
@@ -74,29 +101,31 @@ def _extract_codes_from_image(image_base64: str, mime_type: str = "image/png") -
 
 @router.post("/parse-image")
 def parse_watchlist_image(data: dict):
-    """从截图中识别股票代码列表（Qwen-VL 优先，easyocr 回退）"""
+    """从截图中识别股票代码列表（DeepSeek Vision 优先，easyocr 回退）"""
     image_b64 = data.get("image", "")
     mime_type = data.get("mime_type", "image/png")
     if not image_b64:
         raise HTTPException(status_code=400, detail="缺少图片数据")
 
-    codes, method = _extract_codes_from_image(image_b64, mime_type)
+    codes = _extract_codes_via_deepseek_vision(image_b64, mime_type)
+    if codes:
+        return {"codes": codes, "ocr_available": True, "method": "deepseek-vision"}
 
-    ocr_available = method != "unavailable"
-    return {"codes": codes, "ocr_available": ocr_available, "method": method}
+    codes, method = _extract_codes_from_image(image_b64, mime_type)
+    return {"codes": codes, "ocr_available": method != "unavailable", "method": method}
 
 
 # ── 持久化 CRUD ──────────────────────────────────────────────────
 
 @router.get("/list")
-def api_watchlist_list():
-    """获取所有已保存的自选股"""
-    return {"stocks": watchlist_db.get_watchlist()}
+def api_watchlist_list(user: dict = Depends(get_current_user)):
+    """获取当前用户的自选股"""
+    return {"stocks": watchlist_db.get_watchlist(user["id"])}
 
 
 @router.post("/add")
-def api_watchlist_add(data: dict):
-    """添加股票到自选股列表"""
+def api_watchlist_add(data: dict, user: dict = Depends(get_current_user)):
+    """添加股票到当前用户的自选股"""
     code = data.get("code", "").strip()
     if not code:
         raise HTTPException(status_code=400, detail="缺少股票代码")
@@ -104,7 +133,7 @@ def api_watchlist_add(data: dict):
         symbol = normalize_symbol(code)
         pure = extract_pure_code(symbol)
         name = get_stock_name(pure)
-        result = watchlist_db.add_stock(pure, name)
+        result = watchlist_db.add_stock(user["id"], pure, name)
         if not result["ok"]:
             raise HTTPException(status_code=400, detail=result["msg"])
         return {"code": pure, "name": name}
@@ -149,12 +178,12 @@ def api_watchlist_sparkline(code: str):
 
 
 @router.post("/remove")
-def api_watchlist_remove(data: dict):
-    """从自选股列表移除"""
+def api_watchlist_remove(data: dict, user: dict = Depends(get_current_user)):
+    """从当前用户的自选股移除"""
     code = data.get("code", "").strip()
     if not code:
         raise HTTPException(status_code=400, detail="缺少股票代码")
-    watchlist_db.remove_stock(code)
+    watchlist_db.remove_stock(user["id"], code)
     return {"ok": True}
 
 
@@ -362,3 +391,30 @@ def api_watchlist_detail(code: str):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"分析失败: {str(e)}")
+
+
+# ── 风险日记 API ─────────────────────────────────────────────────
+
+@router.get("/diary/list")
+def api_diary_list(code: str = None, user: dict = Depends(get_current_user)):
+    """获取当前用户的风险日记，可按股票代码筛选"""
+    return {"diaries": watchlist_db.get_diaries(user["id"], code)}
+
+
+@router.post("/diary/add")
+def api_diary_add(data: dict, user: dict = Depends(get_current_user)):
+    """新增风险日记"""
+    result = watchlist_db.add_diary(user["id"], data)
+    if not result["ok"]:
+        raise HTTPException(status_code=400, detail=result["msg"])
+    return result
+
+
+@router.post("/diary/delete")
+def api_diary_delete(data: dict, user: dict = Depends(get_current_user)):
+    """删除风险日记"""
+    diary_id = data.get("id")
+    if not diary_id:
+        raise HTTPException(status_code=400, detail="缺少日记ID")
+    watchlist_db.delete_diary(user["id"], diary_id)
+    return {"ok": True}
