@@ -8,7 +8,6 @@ import math
 import re
 from datetime import datetime
 
-import akshare as ak
 from fastapi import APIRouter, HTTPException, Query
 
 from ..core import (
@@ -17,15 +16,15 @@ from ..core import (
     normalize_symbol,
     extract_pure_code,
     load_prompts,
-    call_llm,
-    cached_llm_call,
     read_cache,
     write_cache,
 )
+from ..core.data import akshare as data_akshare
+from ..core.data import guba as data_guba
+from ..agents import run_agent
 
 router = APIRouter(prefix="/api", tags=["风险挖掘"])
 
-# 加载提示词
 PROMPTS = load_prompts()
 ZT_RISK_PROMPT = PROMPTS.get("ZT_RISK_PROMPT", "")
 
@@ -40,7 +39,7 @@ def get_risk_pool(
         target_date = date if date else datetime.now().strftime("%Y%m%d")
         zt_stocks = []
         try:
-            df_zt = ak.stock_zt_pool_em(date=target_date)
+            df_zt = data_akshare.get_zt_pool(date=target_date)
             if df_zt is not None and not df_zt.empty:
                 for _, row in df_zt.iterrows():
                     zt_stocks.append({
@@ -60,7 +59,7 @@ def get_risk_pool(
         # 2. 获取龙虎榜数据
         lhb_stocks = []
         try:
-            df_lhb = ak.stock_lhb_detail_em()
+            df_lhb = data_akshare.get_lhb_detail()
             if df_lhb is not None and not df_lhb.empty:
                 # 按代码去重，取最新一条
                 seen = {}
@@ -136,7 +135,7 @@ def analyze_risk_stock(data: dict):
 
     # 1. 获取主营构成
     try:
-        df = ak.stock_zygc_em(symbol=symbol)
+        df = data_akshare.get_stock_zygc(symbol=symbol)
         if df is not None and not df.empty:
             records = []
             for _, row in df.iterrows():
@@ -159,7 +158,7 @@ def analyze_risk_stock(data: dict):
     # 2. 获取财务摘要（作为 extra_info）
     extra_info = "暂无财务数据"
     try:
-        abstract_df = ak.stock_financial_abstract_ths(symbol=pure_code)
+        abstract_df = data_akshare.get_financial_abstract(symbol=pure_code)
         if abstract_df is not None and not abstract_df.empty:
             abstract_records = abstract_df.to_dict("records")
             latest = abstract_records[-1] if abstract_records else {}
@@ -200,7 +199,10 @@ def analyze_risk_stock(data: dict):
         extra_info=extra_info,
     )
 
-    raw_analysis = call_llm(prompt, max_tokens=1000, temperature=0.3)
+    raw_analysis = run_agent("analyze_sentiment", {
+        "prompt_text": prompt,
+        "code": code,
+    })
 
     # 5. 尝试解析 JSON
     scores = {}
@@ -271,65 +273,7 @@ def _extract_json(text: str) -> str | None:
 
 def _fetch_guba_logic(pure_code: str, symbol: str) -> str:
     """获取股吧数据，组装成市场上涨逻辑文本"""
-    import requests as req
-
-    parts = []
-
-    # 1. 热门关键词
-    try:
-        df_kw = ak.stock_hot_keyword_em(symbol=symbol)
-        if df_kw is not None and not df_kw.empty:
-            kws = []
-            for _, row in df_kw.iterrows():
-                kws.append(f"{row.get('概念名称','')}(热度{row.get('热度',0)})")
-            if kws:
-                parts.append("股吧热门概念: " + ", ".join(kws[:8]))
-    except Exception:
-        pass
-
-    # 2. 爬取股吧帖子标题
-    try:
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Referer": "https://guba.eastmoney.com/",
-        }
-        titles = []
-        for page in range(1, 3):
-            url = f"https://guba.eastmoney.com/list,{pure_code}_{page}.html"
-            r = req.get(url, headers=headers, timeout=8)
-            if r.status_code != 200:
-                break
-            found = re.findall(r'"post_title"\s*:\s*"([^"]+)"', r.text)
-            for t in found:
-                t = t.strip()
-                if len(t) > 4:
-                    titles.append(t)
-            if len(titles) >= 20:
-                break
-        if titles:
-            parts.append("股吧热帖标题: " + " | ".join(titles[:15]))
-    except Exception:
-        pass
-
-    # 3. 人气排名
-    try:
-        rank_data = {}
-        df_latest = ak.stock_hot_rank_latest_em(symbol=symbol)
-        if df_latest is not None and not df_latest.empty:
-            for _, row in df_latest.iterrows():
-                val = row["value"]
-                if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
-                    continue
-                rank_data[str(row["item"])] = str(val)
-        if rank_data:
-            parts.append(
-                f"人气排名第{rank_data.get('rank','?')}名"
-                f"（共{rank_data.get('marketAllCount','?')}只股票）"
-            )
-    except Exception:
-        pass
-
-    return "\n".join(parts) if parts else "暂未获取到股吧数据"
+    return data_guba.fetch_stock_logic(pure_code, symbol)
 
 
 def _zygc_summary(records: list) -> str:
@@ -347,64 +291,6 @@ def _zygc_summary(records: list) -> str:
             for item in sorted(items, key=lambda x: x["收入比例"], reverse=True)[:10]:
                 lines.append(f"  {item['主营构成']}: 收入占比 {item['收入比例']}%, 毛利率 {item['毛利率']}%")
     return "\n".join(lines)
-
-
-GUBA_ANALYSIS_PROMPT = """
-你是一位专业的股吧舆情分析师。请根据以下从东方财富股吧获取的数据，进行市场情绪分析。
-
-======== 股票信息 ========
-名称: {name}({code})
-
-======== 股吧热门关键词 ========
-{keywords}
-
-======== 人气数据 ========
-{rank_data}
-
-======== 最新股吧帖子标题 ========
-{post_titles}
-
-======== 分析要求 ========
-请从以下维度进行分析（300字以内）：
-
-1. **市场核心逻辑**：股民们最关注的逻辑是什么？市场在交易什么预期？
-2. **情绪判断**：当前市场情绪偏多还是偏空？情绪是否极端？
-3. **主要分歧点**：多空双方的核心分歧在哪里？
-
-请务必基于数据客观分析，不构成投资建议。
-"""
-
-
-def _scrape_guba_posts(symbol: str) -> list:
-    """从东方财富股吧页面抓取帖子标题和链接（多页爬取）"""
-    import re
-    import requests
-
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Referer": "https://guba.eastmoney.com/",
-    }
-    all_posts = []
-    seen_ids = set()
-    for page in range(1, 4):
-        try:
-            url = f"https://guba.eastmoney.com/list,{symbol}_{page}.html"
-            r = requests.get(url, headers=headers, timeout=10)
-            if r.status_code != 200:
-                break
-            titles = re.findall(r'"post_title"\s*:\s*"([^"]+)"', r.text)
-            ids = re.findall(r'"post_id"\s*:\s*(\d+)', r.text)
-            for t, pid in zip(titles, ids):
-                t = t.strip()
-                if len(t) > 4 and pid not in seen_ids and not any(kw in t for kw in ["反诈", "网警", "举报"]):
-                    seen_ids.add(pid)
-                    all_posts.append({
-                        "title": t,
-                        "url": f"https://guba.eastmoney.com/news,{symbol},{pid}.html",
-                    })
-        except Exception:
-            break
-    return all_posts[:60]
 
 
 def _clean_nan(obj):
@@ -450,7 +336,7 @@ def get_guba_data(
         # 1. 热门关键词（来自股吧）
         keywords_data = []
         try:
-            df_kw = ak.stock_hot_keyword_em(symbol=symbol)
+            df_kw = data_akshare.get_hot_keywords(symbol=symbol)
             if df_kw is not None and not df_kw.empty:
                 for _, row in df_kw.iterrows():
                     keywords_data.append({
@@ -463,7 +349,7 @@ def get_guba_data(
         # 2. 最新排名
         rank_data = {}
         try:
-            df_latest = ak.stock_hot_rank_latest_em(symbol=symbol)
+            df_latest = data_akshare.get_hot_rank_latest(symbol=symbol)
             if df_latest is not None and not df_latest.empty:
                 for _, row in df_latest.iterrows():
                     val = row["value"]
@@ -476,7 +362,7 @@ def get_guba_data(
         # 3. 相关股票
         relate_stocks = []
         try:
-            df_relate = ak.stock_hot_rank_relate_em(symbol=symbol)
+            df_relate = data_akshare.get_hot_rank_relate(symbol=symbol)
             if df_relate is not None and not df_relate.empty:
                 for _, row in df_relate.iterrows():
                     relate_stocks.append({
@@ -487,28 +373,25 @@ def get_guba_data(
             pass
 
         # 4. 抓取股吧帖子标题
-        post_titles = _scrape_guba_posts(pure_code)
+        post_titles = data_guba.scrape_stock_posts(pure_code)
 
         # 5. LLM 分析市场逻辑
-        def do_analyze():
-            kw_text = "\n".join([f"{k['keyword']}: 热度 {k['hotness']}" for k in keywords_data[:10]]) if keywords_data else "暂无关键词数据"
-            rank_text = (
-                f"当前人气排名: {rank_data.get('rank', 'N/A')}\n"
-                f"总参评股票数: {rank_data.get('marketAllCount', 'N/A')}\n"
-                f"排名变动(与昨日): {rank_data.get('rankChange', 'N/A')}"
-            )
-            post_text = "\n".join([f"- {t['title']}" for t in post_titles[:40]]) if post_titles else "暂无帖子数据"
+        kw_text = "\n".join([f"{k['keyword']}: 热度 {k['hotness']}" for k in keywords_data[:10]]) if keywords_data else "暂无关键词数据"
+        rank_text = (
+            f"当前人气排名: {rank_data.get('rank', 'N/A')}\n"
+            f"总参评股票数: {rank_data.get('marketAllCount', 'N/A')}\n"
+            f"排名变动(与昨日): {rank_data.get('rankChange', 'N/A')}"
+        )
+        post_text = "\n".join([f"- {t['title']}" for t in post_titles[:40]]) if post_titles else "暂无帖子数据"
 
-            prompt = GUBA_ANALYSIS_PROMPT.format(
-                name=code,
-                code=code,
-                keywords=kw_text,
-                rank_data=rank_text,
-                post_titles=post_text,
-            )
-            return call_llm(prompt, max_tokens=500)
-
-        analysis = cached_llm_call(pure_code, "_guba_analysis", do_analyze)
+        analysis = run_agent("analyze_guba", {
+            "prompt_text": "",  # 让 Agent 自己从文件加载 prompt
+            "code": pure_code,
+            "name": code,
+            "keywords": kw_text,
+            "rank_data": rank_text,
+            "post_titles": post_text,
+        })
 
         # 6. 统计数据量
         total_data_points = (

@@ -13,31 +13,21 @@ import os
 import time
 from datetime import datetime
 
-import akshare as ak
 from fastapi import APIRouter, HTTPException, Depends
 
 from ..core import (
     CACHE_DIR,
-    AI_CACHE_DIR,
-    PROMPTS_DIR,
-    call_llm,
-    cached_llm_call,
     get_stock_name,
     normalize_symbol,
     extract_pure_code,
 )
+from ..core.data import akshare as data_akshare
+from ..agents import run_agent
+from ..auth import get_current_user
 from .. import risk_engine
 from .. import db as watchlist_db
-from ..auth import get_current_user, get_optional_user
 
 router = APIRouter(prefix="/api/watchlist", tags=["自选风控"])
-
-# 加载 watchlist AI 提示词
-_WATCHLIST_RISK_PROMPT = ""
-_prompt_path = os.path.join(PROMPTS_DIR, "watchlist_risk.txt")
-if os.path.exists(_prompt_path):
-    with open(_prompt_path, "r", encoding="utf-8") as _f:
-        _WATCHLIST_RISK_PROMPT = _f.read()
 
 
 # ── 持久化 CRUD ──────────────────────────────────────────────────
@@ -85,7 +75,7 @@ def api_watchlist_sparkline(code: str):
             pass
     try:
         start_date = (datetime.now() - timedelta(days=60)).strftime("%Y%m%d")
-        df = ak.stock_zh_a_hist(
+        df = data_akshare.get_stock_history(
             symbol=code, period="daily",
             start_date=start_date, end_date=today, adjust="qfq"
         )
@@ -181,7 +171,7 @@ def _fetch_news_with_url(code: str) -> list:
         except Exception:
             pass
     try:
-        df = ak.stock_news_em(symbol=code)
+        df = data_akshare.get_stock_news(symbol=code)
         if df is None or df.empty:
             return []
         url_col = next((c for c in ["新闻链接", "url", "link"] if c in df.columns), None)
@@ -212,7 +202,7 @@ def _fetch_comments(code: str) -> list:
         except Exception:
             pass
     try:
-        df = ak.stock_comments_em(symbol=code)
+        df = data_akshare.get_stock_comments(symbol=code)
         if df is None or df.empty:
             return []
         text_col = next((c for c in ["评论内容", "content", "内容", "正文"] if c in df.columns), None)
@@ -241,6 +231,8 @@ def api_watchlist_detail(code: str):
     # 1. 当日缓存命中直接返回
     cached = watchlist_db.get_analysis(code)
     if cached:
+        if not cached.get("name"):
+            cached["name"] = get_stock_name(code) or code
         return cached
 
     # 2. 重新分析
@@ -275,34 +267,32 @@ def api_watchlist_detail(code: str):
         wc_texts = [item["title"] for item in news_list] + comments
         wordcloud_b64 = _generate_wordcloud(wc_texts)
 
-        # 2f. AI 解读（带磁盘缓存，与财报风险模块保持一致）
+        # 2f. AI 解读（通过 Agent 调用，自动处理缓存）
         brief = "暂无 AI 解读"
-        if _WATCHLIST_RISK_PROMPT:
+        try:
             news_titles_str = "\n".join(
                 f"- {n['title']}" for n in news_list[:8]
             ) or "暂无新闻"
             today = datetime.now().strftime("%Y-%m-%d")
-            cache_key = f"watchlist_{today}"
-            try:
-                prompt = _WATCHLIST_RISK_PROMPT.format(
-                    name=name or code, code=code,
-                    fundamental_stars=f_result["score"],
-                    fundamental_basis=f_result["basis"],
-                    news_stars=n_result["score"],
-                    news_basis=n_result["basis"],
-                    risk_stars=r_result["score"],
-                    risk_basis=r_result["basis"],
-                    overall_stars=o_result["score"],
-                    news_titles=news_titles_str,
-                )
-                result_ai = cached_llm_call(code, cache_key, lambda: call_llm(prompt, max_tokens=200))
-                # 过滤掉 API 调用失败时返回的错误字符串
-                if result_ai and not any(result_ai.startswith(p) for p in (
-                    "AI 调用失败", "DeepSeek API Key", "DEEPSEEK_API_KEY", "未配置"
-                )):
-                    brief = result_ai
-            except Exception:
-                pass
+            result_ai = run_agent("analyze_watchlist_risk", {
+                "name": name or code,
+                "code": code,
+                "date": today,
+                "fundamental_stars": str(f_result["score"]),
+                "fundamental_basis": f_result["basis"],
+                "news_stars": str(n_result["score"]),
+                "news_basis": n_result["basis"],
+                "risk_stars": str(r_result["score"]),
+                "risk_basis": r_result["basis"],
+                "overall_stars": str(o_result["score"]),
+                "news_titles": news_titles_str,
+            })
+            if result_ai and not any(result_ai.startswith(p) for p in (
+                "AI 调用失败", "DeepSeek API Key", "DEEPSEEK_API_KEY", "未配置"
+            )):
+                brief = result_ai
+        except Exception:
+            pass
 
         result = {
             "code": code,

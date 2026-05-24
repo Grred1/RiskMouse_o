@@ -6,7 +6,6 @@ from __future__ import annotations
 import json
 from typing import Optional
 
-import akshare as ak
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
 
@@ -19,9 +18,9 @@ from ..core import (
     read_cache,
     write_cache,
     load_prompts,
-    call_llm,
-    cached_llm_call,
 )
+from ..core.data import akshare as data_akshare
+from ..agents import run_agent
 
 router = APIRouter(prefix="/api", tags=["财报风险"])
 
@@ -98,7 +97,7 @@ def get_zygc(
             if cached:
                 return cached
 
-        df = ak.stock_zygc_em(symbol=symbol)
+        df = data_akshare.get_stock_zygc(symbol=symbol)
         if df is None or df.empty:
             raise HTTPException(status_code=404, detail="未获取到数据")
 
@@ -152,18 +151,17 @@ def analyze_zygc(data: dict):
         set(r.get("报告日期", "") for cat in latest_data.values() for r in cat),
         reverse=True,
     )
-    cache_key = f"_zygc_{dates[0]}" if dates else "_zygc"
 
-    def do_analyze():
-        prompt = ZYGC_PROMPT_TEMPLATE.format(
-            symbol=symbol,
-            industry_data=json.dumps(latest_data.get("按行业分类", []), ensure_ascii=False, indent=2),
-            product_data=json.dumps(latest_data.get("按产品分类", []), ensure_ascii=False, indent=2),
-            region_data=json.dumps(latest_data.get("按地区分类", []), ensure_ascii=False, indent=2),
-        )
-        return call_llm(prompt, max_tokens=500)
-
-    analysis = cached_llm_call(symbol, cache_key, do_analyze)
+    prompt = ZYGC_PROMPT_TEMPLATE.format(
+        symbol=symbol,
+        industry_data=json.dumps(latest_data.get("按行业分类", []), ensure_ascii=False, indent=2),
+        product_data=json.dumps(latest_data.get("按产品分类", []), ensure_ascii=False, indent=2),
+        region_data=json.dumps(latest_data.get("按地区分类", []), ensure_ascii=False, indent=2),
+    )
+    analysis = run_agent("analyze_zygc", {
+        "prompt_text": prompt,
+        "code": symbol,
+    })
     return {"analysis": analysis}
 
 
@@ -187,7 +185,7 @@ def get_financial(
 
         # 1. 利润表
         try:
-            profit_df = ak.stock_profit_sheet_by_report_em(symbol=symbol)
+            profit_df = data_akshare.get_profit_sheet(symbol=symbol)
             profit_records = []
             if profit_df is not None:
                 profit_df = profit_df.sort_values("REPORT_DATE")
@@ -209,7 +207,7 @@ def get_financial(
 
         # 2. 资产负债表
         try:
-            balance_df = ak.stock_balance_sheet_by_report_em(symbol=symbol)
+            balance_df = data_akshare.get_balance_sheet(symbol=symbol)
             balance_records = []
             if balance_df is not None:
                 balance_df = balance_df.sort_values("REPORT_DATE")
@@ -229,7 +227,7 @@ def get_financial(
 
         # 3. 现金流量表
         try:
-            cash_df = ak.stock_cash_flow_sheet_by_report_em(symbol=symbol)
+            cash_df = data_akshare.get_cash_flow_sheet(symbol=symbol)
             cash_records = []
             if cash_df is not None:
                 cash_df = cash_df.sort_values("REPORT_DATE")
@@ -249,7 +247,7 @@ def get_financial(
 
         # 4. 财务摘要
         try:
-            abstract = ak.stock_financial_abstract_ths(symbol=code)
+            abstract = data_akshare.get_financial_abstract(symbol=code)
             abstract_records = abstract.to_dict("records") if abstract is not None else []
         except Exception:
             abstract_records = []
@@ -280,54 +278,40 @@ def analyze_financial(data: dict):
     latest_abstract = data.get("latestAbstract", {})
     latest_date = str(latest_abstract.get("报告期", ""))[:10] if latest_abstract.get("报告期") else ""
 
-    cache_key = f"_fin_{latest_date}" if latest_date else "_fin"
+    profit_trend = data.get("profitTrend", [])
+    balance_latest = data.get("balanceLatest", {})
+    cash_latest = data.get("cashLatest", {})
 
-    def do_health():
-        health_prompt = FINANCIAL_HEALTH_TEMPLATE
-        profit_trend = data.get("profitTrend", [])
-        balance_latest = data.get("balanceLatest", {})
-        cash_latest = data.get("cashLatest", {})
+    health_prompt_text = FINANCIAL_HEALTH_TEMPLATE.format(**{
+        "symbol": symbol, "name": name, "latest_date": latest_date,
+        "revenue": f"{latest_abstract.get('营业总收入', 'N/A')}",
+        "revenue_yoy": f"{latest_abstract.get('营业总收入同比增长率', 'N/A')}",
+        "net_profit": f"{latest_abstract.get('净利润', 'N/A')}",
+        "net_profit_yoy": f"{latest_abstract.get('净利润同比增长率', 'N/A')}",
+        "gross_margin": f"{latest_abstract.get('销售毛利率', 'N/A')}",
+        "net_margin": f"{latest_abstract.get('销售净利率', 'N/A')}",
+        "roe": f"{latest_abstract.get('净资产收益率', 'N/A')}",
+        "debt_ratio": f"{latest_abstract.get('资产负债率', 'N/A')}",
+        "operate_cash_flow": f"{latest_abstract.get('每股经营现金流', 'N/A')}",
+        "profit_sheet": json.dumps(balance_latest, ensure_ascii=False, indent=2),
+        "balance_sheet": json.dumps(balance_latest, ensure_ascii=False, indent=2),
+        "cash_flow_sheet": json.dumps(cash_latest, ensure_ascii=False, indent=2),
+        "revenue_trend": json.dumps(profit_trend[-5:] if len(profit_trend) > 5 else profit_trend, ensure_ascii=False, indent=2),
+        "profit_trend": json.dumps(profit_trend[-5:] if len(profit_trend) > 5 else profit_trend, ensure_ascii=False, indent=2),
+    }) if FINANCIAL_HEALTH_TEMPLATE else "暂无模板"
+    health_result = run_agent("analyze_financial", {"prompt_text": health_prompt_text, "code": code, "name": name})
 
-        health_vars = {
-            "symbol": symbol,
-            "name": name,
-            "latest_date": latest_date,
-            "revenue": f"{latest_abstract.get('营业总收入', 'N/A')}",
-            "revenue_yoy": f"{latest_abstract.get('营业总收入同比增长率', 'N/A')}",
-            "net_profit": f"{latest_abstract.get('净利润', 'N/A')}",
-            "net_profit_yoy": f"{latest_abstract.get('净利润同比增长率', 'N/A')}",
-            "gross_margin": f"{latest_abstract.get('销售毛利率', 'N/A')}",
-            "net_margin": f"{latest_abstract.get('销售净利率', 'N/A')}",
-            "roe": f"{latest_abstract.get('净资产收益率', 'N/A')}",
-            "debt_ratio": f"{latest_abstract.get('资产负债率', 'N/A')}",
-            "operate_cash_flow": f"{latest_abstract.get('每股经营现金流', 'N/A')}",
-            "profit_sheet": json.dumps(balance_latest, ensure_ascii=False, indent=2),
-            "balance_sheet": json.dumps(balance_latest, ensure_ascii=False, indent=2),
-            "cash_flow_sheet": json.dumps(cash_latest, ensure_ascii=False, indent=2),
-            "revenue_trend": json.dumps(profit_trend[-5:] if len(profit_trend) > 5 else profit_trend, ensure_ascii=False, indent=2),
-            "profit_trend": json.dumps(profit_trend[-5:] if len(profit_trend) > 5 else profit_trend, ensure_ascii=False, indent=2),
-        }
-        return call_llm(health_prompt.format(**health_vars)) if health_prompt else "暂无模板"
-
-    def do_growth():
-        growth_prompt = FINANCIAL_GROWTH_TEMPLATE
-        rd_data = data.get("rdData", [])
-        business_growth = data.get("businessGrowth", {})
-        asset_expansion = data.get("assetExpansion", [])
-        profit_trend = data.get("profitTrend", [])
-
-        growth_vars = {
-            "symbol": symbol,
-            "name": name,
-            "rd_data": json.dumps(rd_data[-5:] if len(rd_data) > 5 else rd_data, ensure_ascii=False, indent=2),
-            "business_growth": json.dumps(business_growth, ensure_ascii=False, indent=2),
-            "asset_expansion": json.dumps(asset_expansion[-5:] if len(asset_expansion) > 5 else asset_expansion, ensure_ascii=False, indent=2),
-            "profitability_trend": json.dumps(profit_trend[-5:] if len(profit_trend) > 5 else profit_trend, ensure_ascii=False, indent=2),
-        }
-        return call_llm(growth_prompt.format(**growth_vars)) if growth_prompt else "暂无模板"
-
-    health_result = cached_llm_call(symbol, f"{cache_key}_health", do_health)
-    growth_result = cached_llm_call(symbol, f"{cache_key}_growth", do_growth)
+    rd_data = data.get("rdData", [])
+    business_growth = data.get("businessGrowth", {})
+    asset_expansion = data.get("assetExpansion", [])
+    growth_prompt_text = FINANCIAL_GROWTH_TEMPLATE.format(**{
+        "symbol": symbol, "name": name,
+        "rd_data": json.dumps(rd_data[-5:] if len(rd_data) > 5 else rd_data, ensure_ascii=False, indent=2),
+        "business_growth": json.dumps(business_growth, ensure_ascii=False, indent=2),
+        "asset_expansion": json.dumps(asset_expansion[-5:] if len(asset_expansion) > 5 else asset_expansion, ensure_ascii=False, indent=2),
+        "profitability_trend": json.dumps(profit_trend[-5:] if len(profit_trend) > 5 else profit_trend, ensure_ascii=False, indent=2),
+    }) if FINANCIAL_GROWTH_TEMPLATE else "暂无模板"
+    growth_result = run_agent("analyze_financial", {"prompt_text": growth_prompt_text, "code": code, "name": name})
 
     return {"health": health_result, "growth": growth_result}
 
@@ -343,29 +327,29 @@ def analyze_financial_combined(data: dict):
 
     cache_key = f"_combined_{latest_date}" if latest_date else "_combined"
 
-    def do_combined():
-        prompt = FINANCIAL_COMBINED_TEMPLATE
-        profit_trend = data.get("profitTrend", [])
-        balance_latest = data.get("balanceLatest", {})
-        cash_latest = data.get("cashLatest", {})
-        rd_data = data.get("rdData", [])
+    prompt = FINANCIAL_COMBINED_TEMPLATE
+    profit_trend = data.get("profitTrend", [])
+    balance_latest = data.get("balanceLatest", {})
+    cash_latest = data.get("cashLatest", {})
+    rd_data = data.get("rdData", [])
 
-        vars_dict = {
-            "symbol": symbol,
-            "name": name,
-            "financial_data": json.dumps({
-                "abstract": latest_abstract,
-                "balance": balance_latest,
-                "cash": cash_latest,
-                "profit_trend": profit_trend[-5:] if len(profit_trend) > 5 else profit_trend,
-                "rd_data": rd_data[-5:] if len(rd_data) > 5 else rd_data,
-            }, ensure_ascii=False, indent=2),
-            "historical_data": json.dumps(profit_trend[-5:] if len(profit_trend) > 5 else profit_trend, ensure_ascii=False, indent=2),
-            "industry_data": "暂无行业对比数据",
-        }
-        return call_llm(prompt.format(**vars_dict), max_tokens=1000)
-
-    result_text = cached_llm_call(symbol, f"{cache_key}_combined", do_combined)
+    vars_dict = {
+        "symbol": symbol,
+        "name": name,
+        "financial_data": json.dumps({
+            "abstract": latest_abstract,
+            "balance": balance_latest,
+            "cash": cash_latest,
+            "profit_trend": profit_trend[-5:] if len(profit_trend) > 5 else profit_trend,
+            "rd_data": rd_data[-5:] if len(rd_data) > 5 else rd_data,
+        }, ensure_ascii=False, indent=2),
+        "historical_data": json.dumps(profit_trend[-5:] if len(profit_trend) > 5 else profit_trend, ensure_ascii=False, indent=2),
+        "industry_data": "暂无行业对比数据",
+    }
+    result_text = run_agent("analyze_financial", {
+        "prompt_text": prompt.format(**vars_dict),
+        "code": code, "name": name,
+    })
 
     # 尝试解析 JSON
     import re

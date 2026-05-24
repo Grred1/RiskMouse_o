@@ -1,6 +1,10 @@
 """
-Coze Agent 调用封装
-提供统一的 Coze Stream API 调用接口，供所有 Agent 模块复用。
+Coze 外部 Agent 调用封装
+提供统一的 Coze Stream API 调用接口，用于调用外部 Coze 机器人。
+
+功能：
+  - call_coze_agent() — 调用外部 Coze Agent（SSE 流式）
+  - verify_news() — 真伪鉴定（调用外部鉴定 Agent）
 
 环境变量配置（.env）：
   COZE_API_URL=https://xks6nwtnyr.coze.site/stream_run
@@ -22,7 +26,7 @@ COZE_API_URL = os.environ.get(
     "https://xks6nwtnyr.coze.site/stream_run",
 )
 COZE_BEARER_TOKEN = os.environ.get("COZE_BEARER_TOKEN", "")
-COZE_SESSION_ID = os.environ.get("COZE_SESSION_ID", "8UYU6_W1noNrbFPnE4qeu")
+COZE_SESSION_ID = os.environ.get("COZE_SESSION_ID", "Wo7hBi1xBAC9pCWEWbQkN")
 COZE_PROJECT_ID = os.environ.get("COZE_PROJECT_ID", "7643022710771204136")
 
 
@@ -133,15 +137,39 @@ def verify_news(news_text: str) -> dict:
 
     # 尝试解析为结构化 JSON
     try:
-        # 查找可能的 JSON 块
         start = reply.find("{")
         end = reply.rfind("}")
         if start >= 0 and end > start:
             parsed = json.loads(reply[start : end + 1])
+            # Agent 可能返回中文字段名，兼容多种格式
+            judgment = parsed.get("判定结果", parsed.get("judgment", ""))
+            if judgment:
+                authentic = "虚假" not in judgment and "假" not in judgment
+            else:
+                authentic = parsed.get("authentic", parsed.get("is_real", True))
+                if isinstance(authentic, str):
+                    authentic = authentic.lower() in ("true", "真实", "可信", "属实")
+            # 置信度：数字或文字
+            confidence_raw = parsed.get("置信度分数", parsed.get("confidence", "中"))
+            if isinstance(confidence_raw, (int, float)):
+                if confidence_raw >= 8:
+                    confidence = "高"
+                elif confidence_raw >= 4:
+                    confidence = "中"
+                else:
+                    confidence = "低"
+            else:
+                confidence = confidence_raw if confidence_raw in ("高", "中", "低") else "中"
+            # 理由：取多个可能的字段
+            reason = parsed.get("判定理由", parsed.get("reason", parsed.get("explanation", "")))
+            if not reason:
+                reason = parsed.get("建议信息源", "")
+                if isinstance(reason, list):
+                    reason = "，".join(reason)
             return {
-                "authentic": parsed.get("authentic", parsed.get("is_real", True)),
-                "confidence": parsed.get("confidence", "中"),
-                "reason": parsed.get("reason", parsed.get("explanation", reply[:100])),
+                "authentic": authentic,
+                "confidence": confidence,
+                "reason": reason or reply[:150],
             }
     except json.JSONDecodeError:
         pass

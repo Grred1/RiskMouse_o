@@ -18,7 +18,7 @@ except ImportError:
 
 from .api import finance_router, sentiment_router, watchlist_router, mouse_agent_router, macro_router
 from .auth import router as auth_router
-from .core import _ensure_stock_names_cache
+from .core import _ensure_stock_names_cache, cache_mgr
 from . import db as watchlist_db
 
 # 项目根目录 (backend/app/main.py -> backend/ -> 项目根目录)
@@ -62,6 +62,7 @@ def startup():
     """应用启动时的初始化"""
     _ensure_stock_names_cache()
     watchlist_db.init_db()
+    cache_mgr.cleanup_cache()
 
 
 @app.get("/")

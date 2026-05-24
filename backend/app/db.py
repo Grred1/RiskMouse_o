@@ -1,20 +1,23 @@
 """
 SQLite 持久化层 — 用户、自选股列表、分析结果缓存、风险日记。
 """
+from __future__ import annotations
+
 import sqlite3
 import json
 import os
 from datetime import datetime
 
+from .core.config import read_cache, write_cache, CACHE_DIR
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# 部署环境使用 /tmp（绝对可写），本地开发保持原路径
 if os.getenv("COZE_ENV") or os.getenv("PORT"):
     DB_DIR = "/tmp"
     DB_PATH = os.path.join(DB_DIR, "watchlist.db")
 else:
     DB_PATH = os.path.join(BASE_DIR, "watchlist.db")
 
-MAX_WATCHLIST = 10  # 自选股上限
+MAX_WATCHLIST = 10
 
 
 def _conn():
@@ -37,7 +40,7 @@ def init_db():
         c.execute("""
             CREATE TABLE IF NOT EXISTS watchlist (
                 id        INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id   INTEGER NOT NULL,
+                user_id   INTEGER NOT NULL DEFAULT 1,
                 code      TEXT NOT NULL,
                 name      TEXT,
                 added_at  TEXT,
@@ -60,11 +63,6 @@ def init_db():
                 updated_at         TEXT
             )
         """)
-        # 兼容旧表：如果 name 列不存在则添加
-        try:
-            c.execute("ALTER TABLE watchlist_analysis ADD COLUMN name TEXT")
-        except sqlite3.OperationalError:
-            pass  # 列已存在
         c.execute("""
             CREATE TABLE IF NOT EXISTS risk_diaries (
                 id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -83,6 +81,19 @@ def init_db():
         """)
         c.commit()
 
+    # ── 数据库迁移：旧表缺列时补上 ─────────────────────────────────
+    with _conn() as c:
+        # 确保 watchlist 表有 user_id 列（兼容本地已有旧库）
+        try:
+            c.execute("ALTER TABLE watchlist ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1")
+        except sqlite3.OperationalError:
+            pass  # 列已存在
+        # 确保 watchlist_analysis 表有 name 列
+        try:
+            c.execute("ALTER TABLE watchlist_analysis ADD COLUMN name TEXT")
+        except sqlite3.OperationalError:
+            pass
+
 
 # ── 用户 CRUD ────────────────────────────────────────────────────
 
@@ -94,8 +105,7 @@ def create_user(username: str, password_hash: str) -> dict:
                 (username, password_hash, datetime.now().isoformat()),
             )
             c.commit()
-            user_id = cursor.lastrowid
-            return {"ok": True, "user_id": user_id}
+            return {"ok": True, "user_id": cursor.lastrowid}
         except sqlite3.IntegrityError:
             return {"ok": False, "msg": "用户名已存在"}
 
@@ -161,6 +171,11 @@ def remove_stock(user_id: int, code: str) -> bool:
         c.execute("DELETE FROM watchlist WHERE user_id=? AND code=?", (user_id, code))
         c.execute("DELETE FROM watchlist_analysis WHERE code=?", (code,))
         c.commit()
+    # 同时清理 filesystem 缓存
+    try:
+        os.remove(os.path.join(CACHE_DIR, f"watchlist_analysis_{code}.json"))
+    except Exception:
+        pass
     return True
 
 
@@ -171,67 +186,23 @@ def update_stock_name(code: str, name: str):
         c.commit()
 
 
-# ── 分析结果缓存 ─────────────────────────────────────────────────
+# ── 分析结果缓存（统一走 filesystem）─────────────────────────
 
 def get_analysis(code: str):
     """返回当日有效的分析结果，过期返回 None"""
-    with _conn() as c:
-        row = c.execute(
-            "SELECT * FROM watchlist_analysis WHERE code=?",
-            (code,)
-        ).fetchone()
-    if not row:
+    data = read_cache(f"watchlist_analysis_{code}", module="")
+    if not data:
         return None
-    row = dict(row)
     today = datetime.now().strftime("%Y-%m-%d")
-    updated = (row.get("updated_at") or "")[:10]
+    updated = (data.get("updated_at") or "")[:10]
     if updated != today:
         return None
-    try:
-        row["score_basis"] = json.loads(row["score_basis"] or "{}")
-    except Exception:
-        row["score_basis"] = {}
-    try:
-        row["news_json"] = json.loads(row["news_json"] or "[]")
-    except Exception:
-        row["news_json"] = []
-    return row
+    return data
 
 
 def save_analysis(code: str, data: dict):
-    basis_str = json.dumps(data.get("score_basis", {}), ensure_ascii=False)
-    news_str = json.dumps(data.get("news_json", []), ensure_ascii=False)
-    name = data.get("name", "")
-    with _conn() as c:
-        c.execute("""
-            INSERT INTO watchlist_analysis
-              (code, name, fundamental_stars, news_stars, risk_stars, overall_stars,
-               brief, score_basis, news_json, wordcloud_b64, updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?)
-            ON CONFLICT(code) DO UPDATE SET
-              name=excluded.name,
-              fundamental_stars=excluded.fundamental_stars,
-              news_stars=excluded.news_stars,
-              risk_stars=excluded.risk_stars,
-              overall_stars=excluded.overall_stars,
-              brief=excluded.brief,
-              score_basis=excluded.score_basis,
-              news_json=excluded.news_json,
-              wordcloud_b64=excluded.wordcloud_b64,
-              updated_at=excluded.updated_at
-        """, (
-            code, name,
-            data.get("fundamental_stars", 3),
-            data.get("news_stars", 3),
-            data.get("risk_stars", 3),
-            data.get("overall_stars", 3),
-            data.get("brief", ""),
-            basis_str,
-            news_str,
-            data.get("wordcloud_b64", ""),
-            datetime.now().isoformat(),
-        ))
-        c.commit()
+    """保存分析结果到 filesystem 缓存"""
+    write_cache(f"watchlist_analysis_{code}", data, module="")
 
 
 # ── 风险日记 CRUD ────────────────────────────────────────────────

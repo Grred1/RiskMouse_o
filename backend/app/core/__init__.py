@@ -19,10 +19,11 @@ from .config import (
     _ensure_stock_names_cache,
 )
 from .llm import call_llm, cached_llm_call, get_llm_client
-from .coze_agent import call_coze_agent, verify_news
+from ..agents.coze_agent import call_coze_agent, verify_news
 from .skill_emotional import emotional_first_aid, detect_emotion, is_emotional
 from .skill_risk_edu import risk_education, has_edu_match
 from . import cache_rag
+from . import cache as cache_mgr
 from . import usage_doc
 
 __all__ = [

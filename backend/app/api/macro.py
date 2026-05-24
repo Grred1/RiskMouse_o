@@ -12,11 +12,13 @@ import hashlib
 from datetime import datetime, timedelta
 from typing import Optional
 
-import requests
 from fastapi import APIRouter, Query
 
-from ..core import call_llm, read_cache, write_cache
+from ..core import read_cache, write_cache
 from ..core.config import CACHE_DIR
+from ..core.data import news as data_news
+from ..core.data import guba as data_guba
+from ..agents import run_agent
 
 logger = logging.getLogger(__name__)
 
@@ -67,226 +69,11 @@ def _gen_event_key(title: str, date: str) -> str:
     return hashlib.md5(content.encode()).hexdigest()[:12]
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 数据采集
+# 数据采集（统一委托给 data.news）
 # ══════════════════════════════════════════════════════════════════════════════
-
-def _fetch_caixin_news(pages: int = 3) -> list[dict]:
-    all_news = []
-    headers = {
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "referer": "https://cxdata.caixin.com/index/newsTab?tab=latest",
-    }
-    for page in range(1, pages + 1):
-        try:
-            url = "https://cxdata.caixin.com/api/dataplus/sjtPc/news"
-            params = {"pageNum": str(page), "pageSize": "100", "showLabels": "true"}
-            r = requests.get(url, params=params, headers=headers, timeout=12)
-            if r.status_code != 200: break
-            items = r.json().get("data", {}).get("data", [])
-            if not items: break
-            for item in items:
-                raw_time = item.get("time") or item.get("publishTime") or item.get("createTime") or ""
-                title = item.get("title") or ""
-                if not title or len(title) < 5: continue
-                all_news.append({
-                    "title": title.strip(),
-                    "summary": str(item.get("summary", "") or "").strip(),
-                    "url": str(item.get("url", "") or "").strip(),
-                    "date": _parse_date(raw_time),
-                    "source": "caixin",
-                })
-            time.sleep(0.3)
-        except: break
-    return all_news
-
-def _fetch_guba_posts(days: int = 30) -> list[dict]:
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Referer": "https://guba.eastmoney.com/",
-    }
-    all_posts = []
-    seen = set()
-    cutoff = datetime.now() - timedelta(days=days)
-    for page in range(1, 6):
-        try:
-            url = f"https://guba.eastmoney.com/list,zssh000001_{page}.html"
-            r = requests.get(url, headers=headers, timeout=10)
-            if r.status_code != 200: break
-            titles = re.findall(r'"post_title"\s*:\s*"([^"]+)"', r.text)
-            post_ids = re.findall(r'"post_id"\s*:\s*"?(\d+)"?', r.text)
-            pub_times = re.findall(r'"post_publish_time"\s*:\s*"([^"]+)"', r.text)
-            for i, t in enumerate(titles):
-                t = t.strip()
-                if len(t) < 5 or t in seen: continue
-                if any(kw in t for kw in ["反诈", "网警", "举报", "广告"]): continue
-                pid = post_ids[i] if i < len(post_ids) else ""
-                pt = pub_times[i] if i < len(pub_times) else ""
-                date_str = _parse_date(pt)
-                try:
-                    if datetime.strptime(date_str, "%Y-%m-%d") < cutoff: continue
-                except: pass
-                seen.add(t)
-                all_posts.append({
-                    "title": t, "url": f"https://guba.eastmoney.com/news,zssh000001,{pid}.html" if pid else "",
-                    "date": date_str, "source": "guba",
-                })
-            time.sleep(0.5)
-        except: break
-    return all_posts
-
-def _fetch_cls_news(days: int = 30) -> list[dict]:
-    headers = {"User-Agent": "Mozilla/5.0", "Referer": "https://www.cls.cn/"}
-    all_news = []
-    cutoff = datetime.now() - timedelta(days=days)
-    try:
-        url = "https://www.cls.cn/api/sw?app=CLS&sv=7.7.5"
-        for page in range(1, 4):
-            params = {"page": page, "size": 20}
-            r = requests.get(url, params=params, headers=headers, timeout=10)
-            if r.status_code != 200: break
-            items = r.json().get("data", {}).get("roll_data", [])
-            if not items: break
-            for item in items:
-                title = item.get("title", "").strip()
-                if not title or len(title) < 5: continue
-                date_str = _parse_date(item.get("ctime", ""))
-                try:
-                    if datetime.strptime(date_str, "%Y-%m-%d") < cutoff: continue
-                except: pass
-                all_news.append({
-                    "title": title, "summary": item.get("summary", "")[:200],
-                    "url": item.get("share_url", ""), "date": date_str, "source": "cls",
-                })
-            time.sleep(0.3)
-    except: pass
-    return all_news
-
-def _fetch_xinhua_news(days: int = 30) -> list[dict]:
-    headers = {"User-Agent": "Mozilla/5.0"}
-    all_news = []
-    cutoff = datetime.now() - timedelta(days=days)
-    try:
-        import xml.etree.ElementTree as ET
-        url = "http://www.xinhuanet.com/fortune/rss.xml"
-        r = requests.get(url, headers=headers, timeout=10)
-        if r.status_code == 200:
-            try:
-                root = ET.fromstring(r.text)
-                for item in root.iter('item'):
-                    title = item.findtext('title', '').strip()
-                    if not title or len(title) < 5: continue
-                    date_str = _parse_date(item.findtext('pubDate', ''))
-                    try:
-                        if datetime.strptime(date_str, "%Y-%m-%d") < cutoff: continue
-                    except: pass
-                    all_news.append({
-                        "title": title, "summary": item.findtext('description', '')[:200],
-                        "url": item.findtext('link', ''), "date": date_str, "source": "xinhua",
-                    })
-            except: pass
-    except: pass
-    return all_news
 
 def _fetch_all_sources(days: int = 30) -> tuple[list[dict], list[dict]]:
-    official, social = [], []
-    official.extend(_fetch_caixin_news(pages=3))
-    official.extend(_fetch_cls_news(days=days))
-    official.extend(_fetch_xinhua_news(days=days))
-    social.extend(_fetch_guba_posts(days=days))
-    return official, social
-
-# ══════════════════════════════════════════════════════════════════════════════
-# LLM 提示词
-# ══════════════════════════════════════════════════════════════════════════════
-
-RISK_FILTER_PROMPT = """
-你是一位专业的宏观经济风险分析师。你的任务是严格筛选真正具有宏观风险影响的事件。
-
-【宏观风险定义 - 必须满足以下至少一条】
-
-✅ 保留的事件类型：
-1. 地缘政治风险：战争、冲突、制裁、贸易战、领土争端、大国博弈
-2. 货币政策变动：央行利率决策、量化宽松/紧缩、汇率政策重大调整
-3. 金融系统性风险：银行危机、债务违约、市场崩盘、流动性危机
-4. 重大政策转向：重要国家/机构的监管政策、财政政策重大变化
-5. 经济数据重大偏离：GDP、通胀、就业等核心数据明显偏离预期
-6. 大宗商品剧烈波动：石油、黄金、粮食等战略物资价格剧烈波动
-7. 国际组织重大决策：IMF、世界银行、OPEC等重要组织声明
-
-❌ 必须过滤掉的事件：
-1. 日常市场波动：正常涨跌幅、个股分析、技术性调整
-2. 短期情绪反应：当日市场反应、盘中波动、无实质影响的消息
-3. 纯个人观点：股评、预测、缺乏数据支撑的分析
-4. 行业内部新闻：不涉及宏观层面的企业/行业动态
-5. 已完结事件：影响已经结束、不会持续或复发的短期事件
-6. 营销/推广内容：广告、荐股、推广信息
-7. 未经证实的传言：无法核实来源的信息
-
-【输入数据】
-{news_data}
-
-【输出要求】
-严格按以下JSON格式输出（只输出JSON，不要任何其他内容）：
-[
-  {{
-    "keep": true或false,
-    "reason": "保留或过滤的理由（20字以内）",
-    "title": "事件标题（20字以内）",
-    "summary": "事件摘要（60字以内）",
-    "date": "YYYY-MM-DD",
-    "url": "原始链接",
-    "source": "来源名称",
-    "category": "地缘政治|货币政策|金融风险|政策变化|经济数据|大宗商品|国际组织|其他",
-    "risk_level": "高|中|低"
-  }}
-]
-"""
-
-RISK_TIME_ANALYSIS_PROMPT = """
-你是一位专业的宏观风险分析师。请分析以下事件的时间特征。
-
-【当前时间】
-{current_date}
-
-【待分析事件】
-{events_data}
-
-【分析要求】
-
-对于每个事件，请分析并确定：
-
-1. **最早发生时间（first_occurrence）**
-   - 如果新闻报道的是"某事件已经发生一段时间"，取事件实际开始的时间
-   - 如果新闻报道的是"某事件今日正式生效"，取该生效日期
-   - 如果事件有明确的起始日期，取该日期
-   - 格式：YYYY-MM-DD
-
-2. **影响持续时间（duration）**
-   根据事件性质判断影响持续时间：
-   - "一次性冲击"：1-7天（如：市场单日暴跌、短期情绪波动）
-   - "短期影响"：1-4周（如：政策公布后的短期市场反应）
-   - "中期影响"：1-6个月（如：央行政策调整、区域冲突升级）
-   - "长期影响"：6个月以上（如：贸易战升级、长期制裁、重大政策转变）
-   - "持续性风险"：持续至今且无法预估结束时间
-
-3. **时间状态（time_status）**
-   - "已结束"：影响已经完全结束，不再持续
-   - "进行中"：影响正在持续，对现在和未来都有影响
-   - "预期发生"：事件尚未发生，预计在未来某个时间点发生
-
-【输出格式 - 只输出JSON，不要任何其他内容】
-[
-  {{
-    "original_date": "原始报道日期",
-    "title": "事件标题",
-    "first_occurrence": "YYYY-MM-DD（最早发生时间）",
-    "duration": "一次性冲击|短期影响|中期影响|长期影响|持续性风险",
-    "duration_days": 预估天数（整数）,
-    "time_status": "已结束|进行中|预期发生",
-    "reasoning": "分析理由（50字以内）"
-  }}
-]
-"""
+    return data_news.fetch_all_news(days=days)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # LLM 处理
@@ -308,9 +95,7 @@ def _filter_risk_events(official: list[dict], social: list[dict]) -> list[dict]:
             )
         news_text = "\n\n".join(news_lines)
         try:
-            prompt = RISK_FILTER_PROMPT.format(news_data=news_text)
-            response = call_llm(prompt, max_tokens=3000)
-            result = _parse_llm_json(response)
+            result = run_agent("filter_risk_events", {"news_data": news_text})
             if result and isinstance(result, list):
                 for item in result:
                     if item.get("keep", False):
@@ -344,9 +129,10 @@ def _analyze_event_times(events: list[dict], batch_size: int = 8) -> list[dict]:
             )
         events_text = "\n".join(events_lines)
         try:
-            prompt = RISK_TIME_ANALYSIS_PROMPT.format(current_date=current_date, events_data=events_text)
-            response = call_llm(prompt, max_tokens=3000)
-            result = _parse_llm_json(response)
+            result = run_agent("analyze_event_timing", {
+                "current_date": current_date,
+                "events_data": events_text,
+            })
             if result and isinstance(result, list):
                 for j, item in enumerate(result):
                     if j < len(batch):

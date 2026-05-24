@@ -28,8 +28,10 @@ os.makedirs(CACHE_DIR, exist_ok=True)
 AI_CACHE_DIR = os.path.join(CACHE_DIR, "ai")
 os.makedirs(AI_CACHE_DIR, exist_ok=True)
 
-# AI 提示词目录
-PROMPTS_DIR = os.path.join(BACKEND_DIR, "prompts")
+# AI 提示词目录 — 优先使用 agents/prompts/，回退到老路径
+_AGENTS_DIR = os.path.join(APP_DIR, "agents")
+_AGENTS_PROMPTS_DIR = os.path.join(_AGENTS_DIR, "prompts")
+PROMPTS_DIR = _AGENTS_PROMPTS_DIR if os.path.exists(_AGENTS_PROMPTS_DIR) else os.path.join(BACKEND_DIR, "prompts")
 
 # 股票名称缓存
 STOCK_NAMES_CACHE_PATH = os.path.join(CACHE_DIR, "stock_names.json")
@@ -154,7 +156,7 @@ SKILLS_DIR = os.path.join(PROMPTS_DIR, "skills")
 
 def load_skill_md(skill_name: str) -> str:
     """
-    从 backend/prompts/skills/<skill_name>.md 加载 skill 内容。
+    从 prompts/skills/<skill_name>.md 加载 skill 内容。
     找不到文件时返回空字符串。
     """
     path = os.path.join(SKILLS_DIR, f"{skill_name}.md")

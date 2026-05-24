@@ -12,7 +12,6 @@ import time
 from datetime import datetime
 from email.mime.text import MIMEText
 
-import akshare as ak
 from fastapi import APIRouter
 from pydantic import BaseModel
 
@@ -30,6 +29,9 @@ from ..core import (
     risk_education,
     has_edu_match,
 )
+from ..core.data import akshare as data_akshare
+from ..core.data import guba as data_guba
+from ..agents import run_agent
 from .. import db as watchlist_db
 
 router = APIRouter(prefix="/api/agent", tags=["小老鼠Agent"])
@@ -43,35 +45,7 @@ _email_config: dict = {}
 _timer_thread: threading.Thread | None = None
 _timer_running = False
 
-# ── Prompt ──────────────────────────────────────────────────────
-
-CHAT_PROMPT = """
-你是 "小老鼠" — 一只坐在电脑前的可爱小老鼠，一个**企业风险控制系统**的 AI 助手。
-你的核心任务：**提示风险，识别风险，预警风险**。
-
-回答原则：
-1. 🚫 **绝不提供投资建议**（如"可以买入"、"建议持有"、"目标价"等）
-2. ⚠️ 始终以风险视角出发：看到数据优先指出风险点、潜在隐患
-3. 📋 用户问如何使用系统时，引用使用文档指导操作
-4. 💬 遇到不确定的事情，诚实说不知道，不要编造
-5. 🛠️ **工具上下文处理规则（最高优先级）**：
-   - 如果 tool_context 中包含「情绪急救」内容：**必须先共情**，再引导用户回答 2-3 个自检问题，最后给出行为金融学诊断，绝不直接给结论
-   - 如果 tool_context 中包含「风险教育」内容：**必须引用其中的具体数据和指标**（如具体PE数值、比例、历史分位），并从知识点中提取 2-3 个引导用户自检的问题
-
-当前状态: {status}
-刚做了什么: {last_action}
-当前屏幕显示: {screen}
-
-{rag_context}
-
-{tool_context}
-
-{usage_guide}
-
-用户问题: {question}
-
-{length_instruction}语气活泼但严谨。带一两个 emoji。
-"""
+# ── Prompt（News 筛选保留，Chat 切换到 super_agent）─────────────
 
 NEWS_FILTER_PROMPT = """
 你是一位金融信息筛选员。请判断以下股吧帖子是否包含值得关注的金融/市场信息。
@@ -153,17 +127,9 @@ def _send_email(subject: str, body: str):
         pass
 
 
-# ── 意图识别 ────────────────────────────────────────────────────
+# ── 意图识别 + 工具调度 ────────────────────────────────────────
 
 def _identify_intents(question: str) -> list[str]:
-    """
-    规则驱动的意图识别器，返回触发的意图列表。
-
-    意图类型：
-      emotional  — 情绪化交易信号（恐慌/贪婪）
-      education  — 风险知识查询
-      general    — 兜底意图
-    """
     intents: list[str] = []
     if is_emotional(question):
         intents.append("emotional")
@@ -173,10 +139,6 @@ def _identify_intents(question: str) -> list[str]:
 
 
 def _dispatch_tools(question: str, intents: list[str]) -> str:
-    """
-    按意图列表调用对应工具，合并输出为 tool_context 字符串。
-    无激活工具时返回空字符串。
-    """
     outputs: list[str] = []
     if "emotional" in intents:
         result = emotional_first_aid(question)
@@ -262,23 +224,16 @@ def chat(req: ChatRequest):
 
     _push_screen("💬 正在思考你的问题...")
 
-    # 5. 整合所有上下文，调用 LLM 生成回复
-    # skill 触发时给更多 token，确保能完整展开结构化步骤
-    has_skill = bool(tool_context)
-    max_tokens = 600 if has_skill else 300
-    length_instruction = "用 250 字以内回答，" if has_skill else "用 150 字以内回答，"
-
-    prompt = CHAT_PROMPT.format(
-        status=_current_status,
-        last_action=_current_action,
-        screen=_get_screen(),
-        question=req.question,
-        rag_context=rag_context,
-        tool_context=tool_context,
-        usage_guide=usage_guide,
-        length_instruction=length_instruction,
-    )
-    reply = call_llm(prompt, max_tokens=max_tokens, temperature=0.8)
+    # 5. 调用 super_agent
+    reply = run_agent("super_agent", {
+        "question": req.question,
+        "rag_context": rag_context,
+        "usage_guide": usage_guide,
+        "tool_context": tool_context,
+        "status": _current_status,
+        "last_action": _current_action,
+        "screen": _get_screen(),
+    })
 
     _current_status = "idle"
     return {"reply": reply, "intents": intents}
@@ -368,7 +323,7 @@ def _surf_macro():
 
     macro_info = []
     try:
-        df = ak.macro_china_cpi_yearly()
+        df = data_akshare.get_cpi_yearly()
         if df is not None and not df.empty:
             row = df.iloc[-1].to_dict()
             macro_info.append(f"CPI: {json.dumps(row, ensure_ascii=False)}")
@@ -377,7 +332,7 @@ def _surf_macro():
         _push_screen("⚠️ CPI 数据获取失败")
 
     try:
-        df = ak.macro_china_gdp()
+        df = data_akshare.get_gdp()
         if df is not None and not df.empty:
             row = df.iloc[-1].to_dict()
             macro_info.append(f"GDP: {json.dumps(row, ensure_ascii=False)}")
@@ -386,7 +341,7 @@ def _surf_macro():
         _push_screen("⚠️ GDP 数据获取失败")
 
     try:
-        df = ak.macro_china_pmi()
+        df = data_akshare.get_pmi()
         if df is not None and not df.empty:
             row = df.iloc[-1].to_dict()
             macro_info.append(f"PMI: {json.dumps(row, ensure_ascii=False)}")
@@ -426,7 +381,7 @@ def _surf_guba_verify():
     # 获取涨停池作为热门标的
     hot_stocks = []
     try:
-        df = ak.stock_zt_pool_em(date=datetime.now().strftime("%Y%m%d"))
+        df = data_akshare.get_zt_pool(date=datetime.now().strftime("%Y%m%d"))
         if df is not None and not df.empty:
             for _, row in df.iterrows():
                 hot_stocks.append({
@@ -436,7 +391,7 @@ def _surf_guba_verify():
     except Exception:
         pass
 
-    # 没有涨停数据时用自选股（后台任务，取所有用户去重列表）
+    # 没有涨停数据时用自选股
     if not hot_stocks:
         stocks = watchlist_db.get_all_watchlist_stocks()
         hot_stocks = [{"code": s["code"], "name": s.get("name", s["code"])} for s in stocks]
@@ -464,7 +419,7 @@ def _surf_guba_verify():
             pass
 
         try:
-            posts = _scrape_guba_posts(code)
+            posts = data_guba.scrape_stock_posts(code)
             for p in posts:
                 all_posts.append({**p, "stock_name": name, "stock_code": code})
         except Exception:
@@ -556,9 +511,8 @@ def _idle_patrol():
             pass
 
         try:
-            posts = _scrape_guba_posts(code)
+            posts = data_guba.scrape_stock_posts(code)
             if posts:
-                # 在屏幕上滚动显示几条帖子标题
                 for p in posts[:3]:
                     _push_screen(f"📄 {p.get('title','')[:50]}")
                     time.sleep(0.8)
@@ -574,33 +528,4 @@ def _idle_patrol():
 # ── 工具函数 ────────────────────────────────────────────────────
 
 
-def _scrape_guba_posts(symbol: str) -> list:
-    """从东方财富股吧抓取帖子标题和链接"""
-    import re
-    import requests
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Referer": "https://guba.eastmoney.com/",
-    }
-    all_posts = []
-    seen_ids = set()
-    for page in range(1, 4):
-        try:
-            url = f"https://guba.eastmoney.com/list,{symbol}_{page}.html"
-            r = requests.get(url, headers=headers, timeout=10)
-            if r.status_code != 200:
-                break
-            titles = re.findall(r'"post_title"\s*:\s*"([^"]+)"', r.text)
-            ids = re.findall(r'"post_id"\s*:\s*(\d+)', r.text)
-            for t, pid in zip(titles, ids):
-                t = t.strip()
-                if len(t) > 4 and pid not in seen_ids and not any(kw in t for kw in ["反诈", "网警", "举报"]):
-                    seen_ids.add(pid)
-                    all_posts.append({
-                        "title": t,
-                        "url": f"https://guba.eastmoney.com/news,{symbol},{pid}.html",
-                    })
-        except Exception:
-            break
-    return all_posts[:60]
