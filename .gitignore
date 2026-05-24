@@ -1,5 +1,6 @@
 # 缓存文件
 /cache/
+cache1/
 *.db
 
 # 环境变量（含 API Key，禁止提交）
