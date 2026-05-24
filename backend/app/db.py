@@ -8,9 +8,10 @@ import os
 from datetime import datetime
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# 部署环境使用当前工作目录（可写），本地开发保持原路径
+# 部署环境使用 /tmp（绝对可写），本地开发保持原路径
 if os.getenv("COZE_ENV") or os.getenv("PORT"):
-    DB_PATH = os.path.join(os.getcwd(), "watchlist.db")
+    DB_DIR = "/tmp"
+    DB_PATH = os.path.join(DB_DIR, "watchlist.db")
 else:
     DB_PATH = os.path.join(BASE_DIR, "watchlist.db")
 
