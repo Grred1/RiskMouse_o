@@ -22,6 +22,7 @@ _coze_available = False
 try:
     from coze_coding_dev_sdk import LLMClient  # noqa: F401
     from coze_coding_utils.runtime_ctx.context import new_context  # noqa: F401
+    from langchain_core.messages import HumanMessage, SystemMessage, AIMessage  # noqa: F401
 
     _coze_available = True
 except ImportError:
@@ -146,9 +147,28 @@ def call_llm(
             msgs.append({"role": "user", "content": "请继续"})
 
         if provider == "coze":
+            # Coze SDK 要求 langchain_core.messages 类型的消息对象
+            from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+
+            _ROLE_MAP = {
+                "system": SystemMessage,
+                "user": HumanMessage,
+                "human": HumanMessage,
+                "assistant": AIMessage,
+                "ai": AIMessage,
+            }
+            lc_msgs = []
+            for m in msgs:
+                cls = _ROLE_MAP.get(m.get("role", ""), HumanMessage)
+                lc_msgs.append(cls(content=m.get("content", "")))
+
+            # 确保至少有一条 HumanMessage（Coze 平台硬性要求）
+            if not any(isinstance(m, HumanMessage) for m in lc_msgs):
+                lc_msgs.append(HumanMessage(content="请继续"))
+
             client = _get_coze_client()
             response = client.invoke(
-                messages=msgs,
+                messages=lc_msgs,
                 temperature=temperature,
                 max_completion_tokens=max_tokens,
             )
