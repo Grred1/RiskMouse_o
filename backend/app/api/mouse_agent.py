@@ -465,14 +465,26 @@ def _surf_guba_verify():
         time.sleep(0.5)
 
         result = verify_news(title)
-        if result.get("authentic") is False or result.get("confidence") == "低":
+        # 只有明确判定为虚假时才标记可疑；置信度低但未判定虚假的仅提示
+        is_fake = result.get("authentic") is False and result.get("confidence") != "低"
+        is_uncertain = result.get("authentic") is False and result.get("confidence") == "低"
+        reason = result.get("reason", "")
+
+        if is_fake:
             suspicious_count += 1
             _add_notification(
                 "warning",
                 f"⚠️ 可疑消息: {stock_name}",
-                f"帖子: {title}\n研判: {result.get('reason', '')}",
+                f"帖子: {title}\n研判: {reason}",
             )
             _push_screen(f"⚠️ 发现可疑消息: {title[:30]}")
+        elif is_uncertain:
+            _add_notification(
+                "info",
+                f"🔍 待核实: {stock_name}",
+                f"帖子: {title}\n研判: 置信度低，建议人工核实\n{reason}",
+            )
+            _push_screen(f"🔍 待核实消息: {title[:30]}")
         else:
             verified_count += 1
             _push_screen(f"✅ 消息可信: {title[:30]}")

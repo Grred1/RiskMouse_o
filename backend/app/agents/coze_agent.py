@@ -126,8 +126,10 @@ def verify_news(news_text: str) -> dict:
     reply = call_coze_agent(query)
 
     if not reply:
+        import logging
+        logging.getLogger("coze_agent").warning("call_coze_agent 返回空，token=%s..., url=%s", token[:10] if token else "空", url)
         return {
-            "authentic": False,
+            "authentic": None,
             "confidence": "低",
             "reason": "Agent 调用失败，无法鉴定",
         }
