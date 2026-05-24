@@ -25,6 +25,10 @@ from ..core import (
     cached_llm_call,
     cache_rag,
     usage_doc,
+    emotional_first_aid,
+    is_emotional,
+    risk_education,
+    has_edu_match,
 )
 from .. import db as watchlist_db
 
@@ -50,6 +54,9 @@ CHAT_PROMPT = """
 2. ⚠️ 始终以风险视角出发：看到数据优先指出风险点、潜在隐患
 3. 📋 用户问如何使用系统时，引用使用文档指导操作
 4. 💬 遇到不确定的事情，诚实说不知道，不要编造
+5. 🛠️ **工具上下文处理规则（最高优先级）**：
+   - 如果 tool_context 中包含「情绪急救」内容：**必须先共情**，再引导用户回答 2-3 个自检问题，最后给出行为金融学诊断，绝不直接给结论
+   - 如果 tool_context 中包含「风险教育」内容：**必须引用其中的具体数据和指标**（如具体PE数值、比例、历史分位），并从知识点中提取 2-3 个引导用户自检的问题
 
 当前状态: {status}
 刚做了什么: {last_action}
@@ -57,11 +64,13 @@ CHAT_PROMPT = """
 
 {rag_context}
 
+{tool_context}
+
 {usage_guide}
 
 用户问题: {question}
 
-用 120 字以内回答，语气活泼但严谨。带一两个 emoji。
+{length_instruction}语气活泼但严谨。带一两个 emoji。
 """
 
 NEWS_FILTER_PROMPT = """
@@ -144,6 +153,42 @@ def _send_email(subject: str, body: str):
         pass
 
 
+# ── 意图识别 ────────────────────────────────────────────────────
+
+def _identify_intents(question: str) -> list[str]:
+    """
+    规则驱动的意图识别器，返回触发的意图列表。
+
+    意图类型：
+      emotional  — 情绪化交易信号（恐慌/贪婪）
+      education  — 风险知识查询
+      general    — 兜底意图
+    """
+    intents: list[str] = []
+    if is_emotional(question):
+        intents.append("emotional")
+    if has_edu_match(question):
+        intents.append("education")
+    return intents or ["general"]
+
+
+def _dispatch_tools(question: str, intents: list[str]) -> str:
+    """
+    按意图列表调用对应工具，合并输出为 tool_context 字符串。
+    无激活工具时返回空字符串。
+    """
+    outputs: list[str] = []
+    if "emotional" in intents:
+        result = emotional_first_aid(question)
+        if result:
+            outputs.append(result)
+    if "education" in intents:
+        result = risk_education(question)
+        if result:
+            outputs.append(result)
+    return "\n\n".join(outputs)
+
+
 # ── API 端点 ────────────────────────────────────────────────────
 
 
@@ -200,14 +245,28 @@ def chat(req: ChatRequest):
     global _current_status
     _current_status = "chatting"
 
-    # 查询 RAG 知识库，获取相关缓存信息
+    # 1. 意图识别
+    intents = _identify_intents(req.question)
+
+    # 2. 工具 dispatch：按意图调用 skill，合并结果
+    tool_context = _dispatch_tools(req.question, intents)
+    if tool_context:
+        _push_screen(f"🛠️ 调用工具: {', '.join(intents)}")
+
+    # 3. 查询 RAG 知识库
     rag_context = cache_rag.search_as_context(req.question)
 
-    # 查询使用文档（用户问用法时自动注入）
+    # 4. 查询使用文档
     usage_text = usage_doc.search_usage(req.question)
     usage_guide = f"📖 使用指南:\n{usage_text}" if usage_text else ""
 
-    _push_screen("💬 正在思考你的问题... (查阅缓存知识库中)")
+    _push_screen("💬 正在思考你的问题...")
+
+    # 5. 整合所有上下文，调用 LLM 生成回复
+    # skill 触发时给更多 token，确保能完整展开结构化步骤
+    has_skill = bool(tool_context)
+    max_tokens = 600 if has_skill else 300
+    length_instruction = "用 250 字以内回答，" if has_skill else "用 150 字以内回答，"
 
     prompt = CHAT_PROMPT.format(
         status=_current_status,
@@ -215,12 +274,14 @@ def chat(req: ChatRequest):
         screen=_get_screen(),
         question=req.question,
         rag_context=rag_context,
+        tool_context=tool_context,
         usage_guide=usage_guide,
+        length_instruction=length_instruction,
     )
-    reply = call_llm(prompt, max_tokens=300, temperature=0.8)
+    reply = call_llm(prompt, max_tokens=max_tokens, temperature=0.8)
 
     _current_status = "idle"
-    return {"reply": reply}
+    return {"reply": reply, "intents": intents}
 
 
 @router.get("/notifications")
@@ -375,9 +436,9 @@ def _surf_guba_verify():
     except Exception:
         pass
 
-    # 没有涨停数据时用自选股
+    # 没有涨停数据时用自选股（后台任务，取所有用户去重列表）
     if not hot_stocks:
-        stocks = watchlist_db.get_watchlist()
+        stocks = watchlist_db.get_all_watchlist_stocks()
         hot_stocks = [{"code": s["code"], "name": s.get("name", s["code"])} for s in stocks]
 
     if not hot_stocks:
@@ -474,7 +535,7 @@ def _idle_patrol():
         return
 
     _current_status = "idle"
-    stocks = watchlist_db.get_watchlist()
+    stocks = watchlist_db.get_all_watchlist_stocks()
     if not stocks:
         return
 

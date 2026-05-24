@@ -142,6 +142,15 @@ def add_stock(user_id: int, code: str, name: str = "") -> dict:
             return {"ok": False, "msg": str(e)}
 
 
+def get_all_watchlist_stocks() -> list:
+    """返回所有用户自选股去重列表，仅供后台任务（巡检/巡航）使用"""
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT DISTINCT code, name FROM watchlist ORDER BY added_at DESC"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def remove_stock(user_id: int, code: str) -> bool:
     with _conn() as c:
         c.execute("DELETE FROM watchlist WHERE user_id=? AND code=?", (user_id, code))

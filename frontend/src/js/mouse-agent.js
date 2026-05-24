@@ -18,6 +18,7 @@ class MouseAssistant extends HTMLElement {
     this._pollTimer = null;
     this._dragging = false;
     this._didDrag = false;
+    this._expanded = false;
   }
 
   connectedCallback() {
@@ -59,7 +60,10 @@ class MouseAssistant extends HTMLElement {
         <div class="ma-chat-box" id="ma-chat-box">
           <div class="ma-chat-header">
             <span>🐭 小老鼠助手</span>
-            <button class="ma-chat-close" id="ma-chat-close">✕</button>
+            <div class="ma-chat-header-btns">
+              <button class="ma-chat-expand" id="ma-chat-expand" title="展开/收起">⤢</button>
+              <button class="ma-chat-close" id="ma-chat-close">✕</button>
+            </div>
           </div>
           <div class="ma-chat-msgs" id="ma-chat-msgs">
             <div class="ma-msg them">
@@ -89,6 +93,7 @@ class MouseAssistant extends HTMLElement {
     });
 
     this.$("#ma-chat-close").addEventListener("click", () => this.closeChat());
+    this.$("#ma-chat-expand").addEventListener("click", () => this.toggleExpand());
     this.$("#ma-chat-overlay").addEventListener("click", () => this.closeChat());
     this.$("#ma-chat-send").addEventListener("click", () => this.sendChat());
     this.$("#ma-chat-input").addEventListener("keydown", (e) => {
@@ -274,14 +279,34 @@ class MouseAssistant extends HTMLElement {
   openChat() {
     this._chatOpen = true;
     this.$("#ma-chat-box").classList.add("open");
-    this.$("#ma-chat-overlay").classList.add("open");
+    if (!this._expanded) {
+      this.$("#ma-chat-overlay").classList.add("open");
+    }
     this.$("#ma-chat-input").focus();
   }
 
   closeChat() {
     this._chatOpen = false;
-    this.$("#ma-chat-box").classList.remove("open");
+    this._expanded = false;
+    this.$("#ma-chat-box").classList.remove("open", "expanded");
     this.$("#ma-chat-overlay").classList.remove("open");
+    this.$("#ma-chat-expand").textContent = "⤢";
+  }
+
+  toggleExpand() {
+    this._expanded = !this._expanded;
+    const box = this.$("#ma-chat-box");
+    const overlay = this.$("#ma-chat-overlay");
+    const btn = this.$("#ma-chat-expand");
+    if (this._expanded) {
+      box.classList.add("expanded");
+      overlay.classList.remove("open");
+      btn.textContent = "⤡";
+    } else {
+      box.classList.remove("expanded");
+      overlay.classList.add("open");
+      btn.textContent = "⤢";
+    }
   }
 
   async sendChat() {

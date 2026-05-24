@@ -4,6 +4,8 @@
 """
 from __future__ import annotations
 
+from ..core.font_utils import find_chinese_font
+
 import base64
 import io
 import json
@@ -183,11 +185,26 @@ def _generate_wordcloud(texts: list) -> str:
         text_in = " ".join(filtered)
 
         font_candidates = [
+            # macOS
+            "/Library/Fonts/Arial Unicode.ttf",
+            "/System/Library/Fonts/PingFang.ttc",
+            "/System/Library/Fonts/STHeiti Light.ttc",
+            "/System/Library/Fonts/STHeiti Medium.ttc",
+            # Windows
             "C:/Windows/Fonts/msyh.ttc",
             "C:/Windows/Fonts/simhei.ttf",
             "C:/Windows/Fonts/simsun.ttc",
         ]
-        font_path = next((f for f in font_candidates if os.path.exists(f)), None)
+        font_path = None
+        for f in font_candidates:
+            if os.path.exists(f):
+                font_path = f
+                break
+
+        # 如果系统路径没找到，用智能查找（matplotlib / 项目内嵌 / 自动下载）
+        if font_path is None:
+            logger = __import__('logging').getLogger(__name__)
+            font_path = find_chinese_font()
 
         wc = WordCloud(
             font_path=font_path,

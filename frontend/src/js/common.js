@@ -27,4 +27,30 @@ function switchFeature(feature) {
     document.querySelectorAll('.sidebar-btn').forEach(el => el.classList.remove('active'));
     const sid = document.getElementById('sidebar' + feature.charAt(0).toUpperCase() + feature.slice(1));
     if (sid) sid.classList.add('active');
+    // 切换后收起侧栏（手机端遮罩消失露出内容）
+    if (window.innerWidth <= 768) {
+        document.body.classList.add('sidebar-hidden');
+    }
+    updateSidebarToggleIcon();
 }
+
+function toggleMobileSidebar() {
+    document.body.classList.toggle('sidebar-hidden');
+    updateSidebarToggleIcon();
+}
+
+function updateSidebarToggleIcon() {
+    const toggle = document.getElementById('sidebarToggle');
+    if (!toggle) return;
+    const hidden = document.body.classList.contains('sidebar-hidden');
+    if (window.innerWidth <= 768) {
+        toggle.textContent = hidden ? '▶' : '▼';
+    } else {
+        toggle.textContent = hidden ? '▶' : '◀';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    updateSidebarToggleIcon();
+    window.addEventListener('resize', updateSidebarToggleIcon);
+});

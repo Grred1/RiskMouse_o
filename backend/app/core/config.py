@@ -146,6 +146,24 @@ def write_cache(symbol: str, data: dict, module: str = ""):
         pass
 
 
+SKILLS_DIR = os.path.join(PROMPTS_DIR, "skills")
+
+
+def load_skill_md(skill_name: str) -> str:
+    """
+    从 backend/prompts/skills/<skill_name>.md 加载 skill 内容。
+    找不到文件时返回空字符串。
+    """
+    path = os.path.join(SKILLS_DIR, f"{skill_name}.md")
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return f.read()
+        except Exception:
+            pass
+    return ""
+
+
 def load_prompts() -> dict:
     """加载所有 AI 提示词模板"""
     prompts = {}
