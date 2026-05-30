@@ -6,4 +6,4 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_DIR"
 
 # 安装 Python 依赖
-pip install -q akshare pandas fastapi uvicorn coze-coding-dev-sdk coze-coding-utils langchain-core
+pip install -q akshare pandas fastapi uvicorn coze-coding-dev-sdk coze-coding-utils langchain-core wordcloud jieba pillow

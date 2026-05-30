@@ -48,6 +48,8 @@ def api_watchlist_add(data: dict, user: dict = Depends(get_current_user)):
         symbol = normalize_symbol(code)
         pure = extract_pure_code(symbol)
         name = get_stock_name(pure)
+        if not name:
+            raise HTTPException(status_code=400, detail="股票代码不存在，请确认后重试")
         result = watchlist_db.add_stock(user["id"], pure, name)
         if not result["ok"]:
             raise HTTPException(status_code=400, detail=result["msg"])
