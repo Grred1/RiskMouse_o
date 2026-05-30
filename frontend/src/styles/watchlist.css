@@ -363,10 +363,10 @@ body.sidebar-hidden {
   min-height: 0;
   overflow: hidden;
 }
-/* 左+中：内部再分两列 */
+/* 左+中：内部再分两列；左栏随视口弹性变宽，中间栏自动填充剩余 */
 .panel-group-lc {
   display: grid;
-  grid-template-columns: minmax(220px, 268px) 1fr;
+  grid-template-columns: clamp(280px, 25vw, 380px) 1fr;
   gap: 12px;
 }
 /* 右侧：flex 列 */

@@ -119,13 +119,44 @@ body {
 /* container 统一由 watchlist.css 的 !important 覆盖 */
 .container { max-width: none; margin: 0; padding: 0; }
 
-/* ══ 宏观 / 财报 功能区：内边距 + 可滚动 ══ */
-#feature-macro,
+/* ══ 财报功能区：内边距 + 可滚动 ══ */
 #feature-finance {
     padding: 14px 20px 20px;
     min-height: calc(100vh - 68px);
     box-sizing: border-box;
     overflow-y: auto;
+}
+
+/* ══ 宏观日历：全高 flex 链，撑满视口不留白 ══ */
+#feature-macro {
+    padding: 14px 20px 20px;
+    height: calc(100vh - 68px);
+    box-sizing: border-box;
+    overflow: hidden;
+}
+#feature-macro.active {
+    display: flex;
+    flex-direction: column;
+}
+#feature-macro > .panel {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 0;
+}
+#macroCalendarContent {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.macro-timeline-wrap {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 /* ══ 风险挖掘功能区：填满视口、不溢出 ══ */
@@ -410,15 +441,16 @@ table tr:hover td { background: rgba(79, 143, 220, 0.05); color: #1e3252; }
 .tl-risk-btn.medium.active { background: #f39c12; border-color: #f39c12; }
 .tl-risk-btn.low.active { background: #27ae60; border-color: #27ae60; }
 
-/* 主区域 */
+/* 主区域：flex:1 撑满剩余高度 */
 .tl-main-area {
-  display: grid; grid-template-columns: 1fr 380px; gap: 16px; min-height: 400px;
+  display: grid; grid-template-columns: 1fr 380px; gap: 16px;
+  flex: 1; min-height: 0;
 }
 
-/* 时间线 */
+/* 时间线：去掉 max-height，改为填满格子高度 */
 .tl-timeline-container {
   background: #fff; border-radius: 12px; padding: 16px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06); overflow-y: auto; max-height: 540px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06); overflow-y: auto;
 }
 .tl-line-header {
   text-align: center; padding: 8px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
@@ -454,10 +486,10 @@ table tr:hover td { background: rgba(79, 143, 220, 0.05); color: #1e3252; }
 .tl-risk.level-mid { color: #e67e22; }
 .tl-risk.level-low { color: #27ae60; }
 
-/* 详情面板 */
+/* 详情面板：去掉 sticky + max-height，随主区域高度自动撑满 */
 .tl-detail-panel {
   background: #fff; border-radius: 12px; padding: 16px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06); position: sticky; top: 10px; max-height: 540px; overflow-y: auto;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06); overflow-y: auto; align-self: stretch;
 }
 .tl-detail-placeholder { text-align: center; color: #aaa; padding: 40px 20px; font-size: 13px; }
 .tl-detail-header { padding: 12px; background: #f8f9fa; border-radius: 10px; margin-bottom: 12px; }
@@ -591,6 +623,17 @@ table tr:hover td { background: rgba(79, 143, 220, 0.05); color: #1e3252; }
   #feature-finance {
     padding: 10px 10px 20px !important;
   }
+  /* 移动端：宏观还原为自然滚动 */
+  #feature-macro {
+    height: auto !important;
+    min-height: calc(100vh - 64px);
+    overflow: visible !important;
+    display: block !important;
+  }
+  #feature-macro > .panel { flex: unset; display: block; margin-bottom: 16px; }
+  #macroCalendarContent, .macro-timeline-wrap { flex: unset; display: block; overflow: visible; }
+  .tl-main-area { grid-template-columns: 1fr; flex: unset; min-height: 0; }
+  .tl-timeline-container, .tl-detail-panel { max-height: 420px; }
   #feature-risk {
     padding: 10px 10px !important;
     height: auto;
