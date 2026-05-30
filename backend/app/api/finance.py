@@ -18,6 +18,7 @@ from ..core import (
     normalize_symbol,
     extract_pure_code,
     get_stock_name,
+    search_stock,
     read_cache,
     write_cache,
     load_prompts,
@@ -85,6 +86,15 @@ def _safe_val(row, col: str):
         return round(float(val), 2)
     except (ValueError, TypeError):
         return None
+
+
+@router.get("/stock/search")
+def api_search_stock(
+    q: str = Query(..., description="搜索关键词，股票代码或名称"),
+    limit: int = Query(10, description="返回条数上限"),
+):
+    """按名称或代码模糊搜索股票"""
+    return {"results": search_stock(q, limit=limit)}
 
 
 @router.get("/zygc")

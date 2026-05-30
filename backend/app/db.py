@@ -94,6 +94,27 @@ def init_db():
         except sqlite3.OperationalError:
             pass
 
+    # ── 数据库迁移：修复 UNIQUE(code) → UNIQUE(user_id, code) ──
+    # 旧版 watchlist 表的 UNIQUE 约束只在 code 列上，导致不同用户无法添加同一只股票
+    with _conn() as c:
+        row = c.execute("SELECT sql FROM sqlite_master WHERE name='watchlist'").fetchone()
+        sql_normalized = " ".join(row["sql"].split()) if row else ""
+        if "code TEXT UNIQUE NOT NULL" in sql_normalized:
+            c.execute("""
+                CREATE TABLE watchlist_new (
+                    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id   INTEGER NOT NULL DEFAULT 1,
+                    code      TEXT NOT NULL,
+                    name      TEXT,
+                    added_at  TEXT,
+                    FOREIGN KEY (user_id) REFERENCES users(id),
+                    UNIQUE(user_id, code)
+                )
+            """)
+            c.execute("INSERT INTO watchlist_new (id, user_id, code, name, added_at) SELECT id, user_id, code, name, added_at FROM watchlist")
+            c.execute("DROP TABLE watchlist")
+            c.execute("ALTER TABLE watchlist_new RENAME TO watchlist")
+
 
 # ── 用户 CRUD ────────────────────────────────────────────────────
 

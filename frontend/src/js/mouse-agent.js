@@ -19,10 +19,12 @@ class MouseAssistant extends HTMLElement {
     this._dragging = false;
     this._didDrag = false;
     this._expanded = false;
+    this._chatHistory = [];
   }
 
   connectedCallback() {
     this.render();
+    this.loadChatHistory();
     this.bindEvents();
     this.startPolling();
     // 启动定时任务
@@ -102,6 +104,12 @@ class MouseAssistant extends HTMLElement {
     this.$("#ma-notif-clear").addEventListener("click", () => {
       fetch("/api/agent/notifications/clear", { method: "POST" });
       this._notifications = [];
+      this._notifOpen = false;
+      const panel = this.$("#ma-notif-panel");
+      if (panel) {
+        panel.classList.remove("open");
+        panel.style.display = "none";
+      }
       this.updateNotifPanel();
       this.updateBubble();
     });
@@ -271,7 +279,14 @@ class MouseAssistant extends HTMLElement {
   toggleNotifPanel() {
     this._notifOpen = !this._notifOpen;
     const panel = this.$("#ma-notif-panel");
-    if (panel) panel.classList.toggle("open", this._notifOpen);
+    if (!panel) return;
+    if (this._notifOpen) {
+      panel.classList.add("open");
+      panel.style.display = "";
+    } else {
+      panel.classList.remove("open");
+      panel.style.display = "none";
+    }
   }
 
   // ── 聊天 ──────────────────────────────────────────────────
@@ -333,10 +348,12 @@ class MouseAssistant extends HTMLElement {
       const thinking = this.$("#ma-thinking");
       if (thinking) thinking.remove();
       msgs.innerHTML += `<div class="ma-msg them"><div class="ma-msg-label">🐭 小老鼠</div>${this.escapeHtml(data.reply || "嗯...让我想想")}</div>`;
+      this.saveChatHistory();
     } catch (err) {
       const thinking = this.$("#ma-thinking");
       if (thinking) thinking.remove();
       msgs.innerHTML += `<div class="ma-msg them"><div class="ma-msg-label">🐭 小老鼠</div>哎呀，网络出了点问题，等下再问我吧～</div>`;
+      this.saveChatHistory();
     }
     msgs.scrollTop = msgs.scrollHeight;
     sendBtn.disabled = false;
@@ -346,6 +363,53 @@ class MouseAssistant extends HTMLElement {
     const div = document.createElement("div");
     div.textContent = text;
     return div.innerHTML.replace(/\n/g, "<br>");
+  }
+
+  // ── 聊天历史持久化（保存最近 30 轮） ───────────────────
+
+  saveChatHistory() {
+    const msgs = this.$("#ma-chat-msgs");
+    if (!msgs) return;
+    const items = msgs.querySelectorAll(".ma-msg");
+    const history = [];
+    items.forEach(el => {
+      const label = el.querySelector(".ma-msg-label");
+      const textEl = el.cloneNode(true);
+      const labelEl = textEl.querySelector(".ma-msg-label");
+      if (labelEl) labelEl.remove();
+      const text = textEl.textContent.trim();
+      if (text) {
+        history.push({
+          role: label && label.textContent.includes("你") ? "user" : "bot",
+          text: text,
+        });
+      }
+    });
+    // 保留最近 60 条（30 轮对话）
+    if (history.length > 60) {
+      history.splice(0, history.length - 60);
+    }
+    try {
+      localStorage.setItem("mouse_chat_history", JSON.stringify(history));
+    } catch (e) {}
+  }
+
+  loadChatHistory() {
+    let history = [];
+    try {
+      const raw = localStorage.getItem("mouse_chat_history");
+      if (raw) history = JSON.parse(raw);
+    } catch (e) {}
+    const msgs = this.$("#ma-chat-msgs");
+    if (!msgs || history.length === 0) return;
+    // 清空默认欢迎语，替换为历史记录
+    msgs.innerHTML = history.map(item => `
+      <div class="ma-msg ${item.role === 'user' ? 'me' : 'them'}">
+        <div class="ma-msg-label">${item.role === 'user' ? '你' : '🐭 小老鼠'}</div>
+        ${item.text}
+      </div>
+    `).join("");
+    msgs.scrollTop = msgs.scrollHeight;
   }
 }
 

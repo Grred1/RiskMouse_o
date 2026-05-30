@@ -35,6 +35,7 @@ function initUploadZone() {
 async function loadWatchlist() {
     try {
         const resp = await fetch('/api/watchlist/list', { headers: getAuthHeaders() });
+        if (!resp.ok) { const d = await resp.json(); handleAuthError(d.detail); return; }
         const data = await resp.json();
         watchlistStocks = data.stocks || [];
         renderWatchlistGrid();
@@ -55,7 +56,7 @@ async function addToWatchlist(code) {
             body: JSON.stringify({ code }),
         });
         const data = await resp.json();
-        if (!resp.ok) { showWatchlistError(data.detail || '添加失败'); return; }
+        if (!resp.ok) { showWatchlistError(data.detail || '添加失败'); handleAuthError(data.detail); return; }
         await loadWatchlist();
         clearPendingCode(code);
         showWatchlistError('');
@@ -65,11 +66,12 @@ async function addToWatchlist(code) {
 }
 
 async function removeFromWatchlist(code) {
-    await fetch('/api/watchlist/remove', {
+    const resp = await fetch('/api/watchlist/remove', {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({ code }),
     });
+    if (!resp.ok) { const d = await resp.json(); handleAuthError(d.detail); return; }
     delete assessmentResults[code];
     cleanDiaryForStock(code);
     renderRatingList();

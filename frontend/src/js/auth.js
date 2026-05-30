@@ -6,6 +6,14 @@ function getAuthHeaders() {
     return headers;
 }
 
+// 401 响应自动清除过期 token（不刷新页面，避免死循环）
+function handleAuthError(detail) {
+    if (detail && (detail.includes('用户不存在') || detail.includes('无效的认证令牌') || detail.includes('未登录'))) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+    }
+}
+
 // ── 侧栏登录状态管理 ─────────────────────────────────────────
 (function() {
     const authBtn   = document.getElementById('sidebarAuthBtn');

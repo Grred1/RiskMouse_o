@@ -9,6 +9,7 @@ import json
 import time
 import logging
 import hashlib
+import threading
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -33,6 +34,8 @@ _cluster_engine = NewsClusterEngine()
 # ── 刷新进度追踪 ──────────────────────────────────────────────
 
 _update_progress: dict[str, dict] = {}
+_update_locks: dict[str, threading.Lock] = {}
+_update_locks_lock = threading.Lock()
 
 _PROGRESS_MAP = {
     "idle":         ("等待中", 0),
@@ -268,7 +271,23 @@ def _save_persistent_events(data: dict) -> None:
         logger.error(f"保存缓存失败: {e}")
 
 def _start_background_update(cache_key: str, days: int) -> dict:
-    """启动后台更新，优先返回已有缓存"""
+    """启动后台更新，同一 cache_key 同时只允许一个后台任务"""
+    # 检查是否已有后台任务在运行
+    with _update_locks_lock:
+        if cache_key in _update_locks and _update_locks[cache_key].locked():
+            logger.info("后台更新已在进行中，跳过重复请求: %s", cache_key)
+            cached = read_cache(cache_key, module="macro")
+            if cached:
+                cached["from_cache"] = True
+                cached["cache_status"] = "background_updating"
+                return cached
+            return {"from_cache": False, "cache_status": "background_started"}
+        lock = _update_locks.get(cache_key)
+        if lock is None:
+            lock = threading.Lock()
+            _update_locks[cache_key] = lock
+        lock.acquire()
+
     cached = read_cache(cache_key, module="macro")
     if cached:
         cached["from_cache"] = True
@@ -276,7 +295,6 @@ def _start_background_update(cache_key: str, days: int) -> dict:
 
     _set_progress(cache_key, "fetching")
 
-    import threading
     def _background_update():
         try:
             existing = _load_persistent_events().get("events", [])
@@ -300,7 +318,6 @@ def _start_background_update(cache_key: str, days: int) -> dict:
         except Exception as e:
             logger.error(f"宏观日历后台更新失败: {e}")
             _set_progress(cache_key, "done", f"更新失败: {e}")
-            # 回退：用 persistent 事件库兜底写缓存
             try:
                 fallback = _load_persistent_events().get("events", [])
                 if fallback:
@@ -310,6 +327,11 @@ def _start_background_update(cache_key: str, days: int) -> dict:
                     write_cache(cache_key, data, module="macro")
             except Exception:
                 pass
+        finally:
+            with _update_locks_lock:
+                if cache_key in _update_locks:
+                    _update_locks[cache_key].release()
+
     thread = threading.Thread(target=_background_update, daemon=True)
     thread.start()
 

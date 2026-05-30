@@ -28,9 +28,12 @@ from ..core import (
     is_emotional,
     risk_education,
     has_edu_match,
+    read_cache,
+    write_cache,
 )
 from ..core.data import akshare as data_akshare
 from ..core.data import guba as data_guba
+from ..core.data import news as data_news
 from ..agents import run_agent
 from .. import db as watchlist_db
 
@@ -44,17 +47,8 @@ _notifications: list[dict] = []
 _email_config: dict = {}
 _timer_thread: threading.Thread | None = None
 _timer_running = False
-
-# ── Prompt（News 筛选保留，Chat 切换到 super_agent）─────────────
-
-NEWS_FILTER_PROMPT = """
-你是一位金融信息筛选员。请判断以下股吧帖子是否包含值得关注的金融/市场信息。
-只关注有实质性内容的帖子（政策变化、公司公告、行业动态、财报信息等），忽略灌水帖。
-
-帖子标题: {title}
-
-请只输出一个字的答案：是/否
-"""
+_analyzed_news_ids: set[str] = set()
+_surf_lock = threading.Lock()
 
 # ── API Models ──────────────────────────────────────────────────
 
@@ -298,115 +292,136 @@ def _timer_loop():
 
 
 def _deep_surf():
-    """深度巡检：宏观 + 热门股吧 + 真伪鉴定"""
+    """深度巡检：抓取宏观新闻 + 热门股吧 + 真伪鉴定（互斥，同时只允许一个巡检）"""
+    if not _surf_lock.acquire(blocking=False):
+        _push_screen("⏭️ 已有巡检任务进行中，跳过本次")
+        return
+
     global _current_status, _current_action
+    try:
+        _current_status = "surfing"
+        _set_screen("🌊 小老鼠开始深度网上冲浪...")
+        _current_action = "🌊 深度巡检中..."
 
-    _current_status = "surfing"
-    _set_screen("� 小老鼠开始深度网上冲浪...")
-    _current_action = "🌊 深度巡检中..."
+        _surf_news()
+        _surf_guba_verify()
 
-    # 1. 宏观巡检
-    _surf_macro()
-
-    # 2. 股吧扫描 + 真伪鉴定
-    _surf_guba_verify()
-
-    _current_status = "idle"
-    _current_action = "✅ 深度巡检完成"
-    _push_screen("✅ 本轮深度巡检全部完成")
+        _current_status = "idle"
+        _current_action = "✅ 深度巡检完成"
+        _push_screen("✅ 本轮深度巡检全部完成")
+    finally:
+        _surf_lock.release()
 
 
-def _surf_macro():
-    """宏观数据巡检"""
-    _push_screen("📈 正在查看宏观经济数据...")
+def _surf_news():
+    """抓取宏观财经新闻，分析是否有重要事件，已分析过的跳过"""
+    _push_screen("📰 正在抓取宏观财经新闻...")
     time.sleep(0.5)
 
-    macro_info = []
     try:
-        df = data_akshare.get_cpi_yearly()
-        if df is not None and not df.empty:
-            row = df.iloc[-1].to_dict()
-            macro_info.append(f"CPI: {json.dumps(row, ensure_ascii=False)}")
-            _push_screen(f"📊 CPI 数据已获取")
+        official_news, _ = data_news.fetch_all_news(days=1)
     except Exception:
-        _push_screen("⚠️ CPI 数据获取失败")
+        _push_screen("⚠️ 新闻抓取失败")
+        return
 
-    try:
-        df = data_akshare.get_gdp()
-        if df is not None and not df.empty:
-            row = df.iloc[-1].to_dict()
-            macro_info.append(f"GDP: {json.dumps(row, ensure_ascii=False)}")
-            _push_screen(f"📊 GDP 数据已获取")
-    except Exception:
-        _push_screen("⚠️ GDP 数据获取失败")
+    if not official_news:
+        _push_screen("📭 暂无新的宏观新闻")
+        return
 
-    try:
-        df = data_akshare.get_pmi()
-        if df is not None and not df.empty:
-            row = df.iloc[-1].to_dict()
-            macro_info.append(f"PMI: {json.dumps(row, ensure_ascii=False)}")
-            _push_screen(f"📊 PMI 数据已获取")
-    except Exception:
-        _push_screen("⚠️ PMI 数据获取失败")
+    _push_screen(f"📋 获取到 {len(official_news)} 条新闻，筛选新内容...")
 
+    new_news = []
+    for n in official_news:
+        news_id = f"{n['source']}:{n['title']}"
+        if news_id not in _analyzed_news_ids:
+            _analyzed_news_ids.add(news_id)
+            new_news.append(n)
+
+    if not new_news:
+        _push_screen("📭 没有未分析过的新新闻")
+        return
+
+    _push_screen(f"🔍 发现 {len(new_news)} 条新新闻，分析是否包含重要宏观事件...")
     time.sleep(0.5)
-    _push_screen("🤔 分析宏观数据中...")
 
-    web_data = "\n".join(macro_info) if macro_info else "暂无最新数据"
+    news_text = "\n".join(
+        f"- [{n['source']}] {n['title']}（{n['date']}）" for n in new_news[:5]
+    )
     prompt = f"""
 你是一位宏观经济分析师。当前日期: {datetime.now().strftime("%Y-%m-%d")}
-已有事件: CPI月度数据, PMI月度数据, GDP数据
 
-最新数据:
-{web_data}
+以下是最近几天的财经新闻：
 
-判断是否有需要添加到宏观日历的重要新事件。只需输出 JSON:
-{{"should_add": true/false, "reason": "理由", "event": {{"name": "事件名", "date": "日期", "tag": "important/normal/warning"}}}}
+{news_text}
+
+判断哪些是重要的宏观事件（如政策变化、经济数据发布、重大行业监管等），需要提醒用户关注。
+忽略普通的公司公告、市场日常波动等。
+
+只需输出 JSON 数组，没有重要事件就输出空数组:
+[{{"title": "事件标题", "date": "日期", "tag": "important/normal/warning", "reason": "简短理由"}}]
 """
-    result = call_llm(messages=[{"role": "user", "content": prompt}], max_tokens=300)
+    result = call_llm(messages=[{"role": "user", "content": prompt}], max_tokens=500)
     try:
-        parsed = json.loads(result)
-        if parsed.get("should_add") and parsed.get("event"):
-            ev = parsed["event"]
-            _add_notification(ev.get("tag", "info"), f"📅 宏观事件: {ev['name']}", f"日期: {ev['date']}\n{parsed.get('reason','')}")
-            _push_screen(f"📅 发现重要宏观事件: {ev['name']}")
+        events = json.loads(result)
+        if events:
+            # 写入宏观日历持久化事件库
+            try:
+                persistent = read_cache("macro_risk_timeline_persistent", module="macro") or {"events": []}
+                existing_titles = {e["title"] for e in persistent.get("events", [])}
+                for ev in events:
+                    if ev["title"] not in existing_titles:
+                        tag = ev.get("tag", "info")
+                        risk_level = "高" if tag == "warning" else "中" if tag == "important" else "低"
+                        persistent["events"].append({
+                            "title": ev["title"],
+                            "date": ev.get("date", ""),
+                            "first_occurrence": ev.get("date", ""),
+                            "risk_level": risk_level,
+                            "duration": "短期影响",
+                            "duration_days": 14,
+                            "time_status": "进行中",
+                            "source": "小老鼠巡检",
+                            "reason": ev.get("reason", ""),
+                        })
+                        existing_titles.add(ev["title"])
+                write_cache("macro_risk_timeline_persistent", persistent, module="macro")
+            except Exception:
+                pass
+
+            for ev in events:
+                tag = ev.get("tag", "info")
+                _add_notification(
+                    tag,
+                    f"📰 宏观事件: {ev['title']}",
+                    f"日期: {ev.get('date', '')}\n{ev.get('reason', '')}",
+                )
+                _push_screen(f"📰 发现重要事件: {ev['title'][:30]}")
+            _push_screen(f"✅ 分析完成，发现 {len(events)} 个重要事件，已写入宏观日历")
+        else:
+            _push_screen("📰 本轮新闻无重要宏观事件")
     except Exception:
-        _push_screen("📰 宏观数据已查看，暂无新增事件")
+        _push_screen("📰 新闻分析完成，暂无新增重要事件")
 
 
 def _surf_guba_verify():
-    """扫描热门股吧帖子 + 真伪鉴定"""
-    _push_screen("📡 扫描热门股票的股吧帖子...")
+    """扫描自选股股吧帖子 + 真伪鉴定"""
+    _push_screen("📡 扫描自选股的股吧帖子...")
 
-    # 获取涨停池作为热门标的
-    hot_stocks = []
-    try:
-        df = data_akshare.get_zt_pool(date=datetime.now().strftime("%Y%m%d"))
-        if df is not None and not df.empty:
-            for _, row in df.iterrows():
-                hot_stocks.append({
-                    "code": str(row.get("代码", "")),
-                    "name": str(row.get("名称", "")),
-                })
-    except Exception:
-        pass
-
-    # 没有涨停数据时用自选股
-    if not hot_stocks:
-        stocks = watchlist_db.get_all_watchlist_stocks()
-        hot_stocks = [{"code": s["code"], "name": s.get("name", s["code"])} for s in stocks]
+    # 只扫描自选股
+    stocks = watchlist_db.get_all_watchlist_stocks()
+    hot_stocks = [{"code": s["code"], "name": s.get("name", s["code"])} for s in stocks]
 
     if not hot_stocks:
-        _push_screen("� 暂无热门股票数据，跳过股吧扫描")
+        _push_screen("🕊️ 暂无自选股，跳过股吧扫描")
         return
 
-    _push_screen(f"🔍 从 {len(hot_stocks)} 只热门股票中扫描股吧...")
+    _push_screen(f"🔍 从 {len(hot_stocks)} 只自选股中扫描股吧...")
 
     all_posts = []
-    for i, stock in enumerate(hot_stocks[:5]):  # 最多扫描 5 只
+    for i, stock in enumerate(hot_stocks[:3]):  # 最多扫描 3 只
         code = stock["code"]
         name = stock["name"]
-        _current_action = f"📖 正在浏览 {name}({code}) 的股吧... ({i+1}/{min(len(hot_stocks),5)})"
+        _current_action = f"📖 正在浏览 {name}({code}) 的股吧... ({i+1}/{min(len(hot_stocks),3)})"
         _push_screen(f"📖 浏览 {name} 的股吧...")
         time.sleep(0.3)
 
@@ -420,7 +435,7 @@ def _surf_guba_verify():
 
         try:
             posts = data_guba.scrape_stock_posts(code)
-            for p in posts:
+            for p in posts[:20]:  # 每只最多取 20 条
                 all_posts.append({**p, "stock_name": name, "stock_code": code})
         except Exception:
             pass
@@ -429,23 +444,33 @@ def _surf_guba_verify():
         _push_screen("📭 没有获取到股吧帖子")
         return
 
-    _push_screen(f"📋 共收集 {len(all_posts)} 条帖子，正在筛选重要信息...")
+    _push_screen(f"📋 共收集 {len(all_posts)} 条帖子，正在批量筛选重要信息...")
     time.sleep(0.5)
 
-    # 用 LLM 快速筛选有实质性内容的帖子
-    important_posts = []
-    for post in all_posts[:30]:  # 最多处理 30 条
-        title = post.get("title", "")
-        if not title or len(title) < 6:
-            continue
-        _push_screen(f"🔎 筛选: {title[:30]}...")
-        try:
-            filter_prompt = NEWS_FILTER_PROMPT.format(title=title)
-            verdict = call_llm(messages=[{"role": "user", "content": filter_prompt}], max_tokens=10)
-            if "是" in verdict:
-                important_posts.append(post)
-        except Exception:
-            pass
+    # 用一次 LLM 调用批量筛选有实质性内容的帖子
+    all_titles = [p.get("title", "") for p in all_posts if p.get("title") and len(p.get("title", "")) >= 6]
+    if not all_titles:
+        _push_screen("📭 没有有效帖子标题")
+        return
+
+    titles_text = "\n".join(f"{i+1}. {t}" for i, t in enumerate(all_titles[:30]))
+    batch_prompt = f"""
+你是一位金融信息筛选员。请判断以下帖子的标题是否包含值得关注的金融/市场信息。
+只关注有实质性内容的帖子（政策变化、公司公告、行业动态、财报信息等），忽略灌水帖。
+
+{titles_text}
+
+只输出重要帖子的序号列表（JSON 数组），没有就输出 []:
+"""
+    try:
+        batch_result = call_llm(messages=[{"role": "user", "content": batch_prompt}], max_tokens=200)
+        indices = json.loads(batch_result.strip())
+        if not isinstance(indices, list):
+            raise ValueError
+        important_posts = [all_posts[i-1] for i in indices if 1 <= i <= len(all_posts)]
+    except Exception:
+        # 回退：只保留前几条
+        important_posts = all_posts[:5]
 
     if not important_posts:
         _push_screen("📭 未发现值得关注的重要消息")
@@ -457,7 +482,7 @@ def _surf_guba_verify():
     # 串行调用 Coze 真伪鉴定
     verified_count = 0
     suspicious_count = 0
-    for post in important_posts[:5]:
+    for post in important_posts[:3]:  # 最多鉴定 3 条
         title = post.get("title", "")
         stock_name = post.get("stock_name", "")
         _current_action = f"🔬 鉴定中: {title[:30]}..."
@@ -513,14 +538,6 @@ def _idle_patrol():
         name = stock.get("name", code)
         _current_action = f"🐭 正在浏览 {name} 的股吧..."
         _push_screen(f"🐭 浏览 {name}({code}) 的股吧...")
-
-        # 查阅缓存知识库
-        try:
-            cached = cache_rag.query(code)
-            if cached:
-                _push_screen(f"📚 已有 {name} 的历史分析记录")
-        except Exception:
-            pass
 
         try:
             posts = data_guba.scrape_stock_posts(code)

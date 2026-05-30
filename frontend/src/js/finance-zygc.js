@@ -1,7 +1,36 @@
 async function search() {
-    const input = document.getElementById('symbolInput').value.trim().toUpperCase();
-    if (!input) { showError('请输入股票代码'); return; }
+    let input = document.getElementById('symbolInput').value.trim().toUpperCase();
+    if (!input) { showError('请输入股票代码或名称'); return; }
     hideError();
+
+    // 如果不是标准的股票代码格式（6位数字或带 SH/SZ/BJ 前缀），尝试名称搜索
+    if (!/^[SHBJSZ]{0,4}\d{6}$/.test(input)) {
+        document.getElementById('loadingOverlay').style.display = 'block';
+        document.getElementById('loadingText').textContent = '正在搜索股票...';
+        try {
+            const resp = await fetch(`/api/stock/search?q=${encodeURIComponent(input)}&limit=5`);
+            const data = await resp.json();
+            const results = data.results || [];
+            if (results.length === 0) {
+                showError(`未找到匹配「${input}」的股票`);
+                document.getElementById('loadingOverlay').style.display = 'none';
+                return;
+            }
+            if (results.length > 1) {
+                // 多只匹配，让用户选
+                const names = results.map(r => `${r.name}(${r.code})`).join('、');
+                showError(`找到多只匹配：${names}，请输入精确代码`);
+                document.getElementById('loadingOverlay').style.display = 'none';
+                return;
+            }
+            input = results[0].code;
+            document.getElementById('symbolInput').value = input;
+        } catch (e) {
+            showError('搜索失败: ' + e.message);
+            document.getElementById('loadingOverlay').style.display = 'none';
+            return;
+        }
+    }
 
     growthChartsRendered = false;
     document.querySelectorAll('#financialContent .panel').forEach(p => p.style.display = '');

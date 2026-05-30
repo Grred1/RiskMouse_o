@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="src/styles/common.css?v=27">
     <link rel="stylesheet" href="src/styles/finance.css?v=7">
     <link rel="stylesheet" href="src/styles/zt.css?v=7">
-    <link rel="stylesheet" href="src/styles/watchlist.css?v=14">
+    <link rel="stylesheet" href="src/styles/watchlist.css?v=15">
 </head>
 <body>
 
@@ -73,7 +73,7 @@
     <div class="feature-section" id="feature-finance">
 
         <div class="search-box">
-            <input type="text" id="symbolInput" placeholder="输入 6 位股票代码，如 002081、600519..." maxlength="10">
+            <input type="text" id="symbolInput" placeholder="输入股票代码或名称，如 002081、贵州茅台..." maxlength="20">
             <button id="searchBtn" onclick="search()">查询</button>
         </div>
 
@@ -452,21 +452,7 @@
     <div style="flex:1;overflow-y:auto;padding:16px;" id="detailDrawerBody"></div>
 </div>
 
-<script src="src/js/common.js?v=9"></script>
-<script src="src/js/finance.js?v=7"></script>
-<script src="src/js/finance-zygc.js?v=7"></script>
-<script src="src/js/finance-charts.js?v=7"></script>
-<script src="src/js/finance-ai.js?v=7"></script>
-<script src="src/js/risk.js?v=6"></script>
-<script src="src/js/risk-pool.js?v=6"></script>
-<script src="src/js/risk-analysis.js?v=6"></script>
-<script src="src/js/macro.js?v=11"></script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-<script src="src/js/watchlist-core.js?v=9"></script>
-<script src="src/js/watchlist-analysis.js?v=7"></script>
-<script src="src/js/watchlist-diary.js?v=7"></script>
-
-<!-- ── 登录/注册弹窗 ── -->
+<!-- ── 登录/注册弹窗（必须在 auth.js 之前，否则 JS 找不到弹窗元素） ── -->
 <div class="modal-overlay" id="authModal">
   <div class="modal-box">
     <button class="modal-close" id="authModalClose">&times;</button>
@@ -487,9 +473,23 @@
   </div>
 </div>
 
-<script src="src/js/auth.js?v=2"></script>
-  <link rel="stylesheet" href="src/styles/mouse-agent.css?v=7">
-  <script src="src/js/mouse-agent.js?v=6"></script>
+<script src="src/js/common.js?v=9"></script>
+<script src="src/js/auth.js?v=4"></script>
+<script src="src/js/finance.js?v=7"></script>
+<script src="src/js/finance-zygc.js?v=8"></script>
+<script src="src/js/finance-charts.js?v=7"></script>
+<script src="src/js/finance-ai.js?v=7"></script>
+<script src="src/js/risk.js?v=6"></script>
+<script src="src/js/risk-pool.js?v=6"></script>
+<script src="src/js/risk-analysis.js?v=6"></script>
+<script src="src/js/macro.js?v=11"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="src/js/watchlist-core.js?v=10"></script>
+<script src="src/js/watchlist-analysis.js?v=8"></script>
+<script src="src/js/watchlist-diary.js?v=7"></script>
+
+<link rel="stylesheet" href="src/styles/mouse-agent.css?v=7">
+  <script src="src/js/mouse-agent.js?v=7"></script>
   <mouse-assistant></mouse-assistant>
 </body>
 </html>

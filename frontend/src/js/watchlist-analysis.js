@@ -15,6 +15,7 @@ async function assessAll() {
         status.textContent = `测评中 ${done + 1}/${total}：${s.name || s.code}...`;
         try {
             const resp = await fetch(`/api/watchlist/detail/${s.code}`);
+            if (!resp.ok) { const d = await resp.json(); handleAuthError(d.detail); continue; }
             if (resp.ok) {
                 const data = await resp.json();
                 assessmentResults[s.code] = data;

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import os
 import json
+import threading
 from typing import Optional
 
 import akshare as ak
@@ -37,6 +38,17 @@ PROMPTS_DIR = _AGENTS_PROMPTS_DIR if os.path.exists(_AGENTS_PROMPTS_DIR) else os
 STOCK_NAMES_CACHE_PATH = os.path.join(CACHE_DIR, "stock_names.json")
 
 stock_name_cache: Optional[dict] = None
+
+# 缓存文件读写锁（按文件路径粒度）
+_cache_locks: dict[str, threading.Lock] = {}
+_cache_locks_lock = threading.Lock()
+
+
+def _get_cache_lock(filepath: str) -> threading.Lock:
+    with _cache_locks_lock:
+        if filepath not in _cache_locks:
+            _cache_locks[filepath] = threading.Lock()
+        return _cache_locks[filepath]
 
 
 def _ensure_stock_names_cache() -> dict:
@@ -120,6 +132,31 @@ def get_stock_name(code: str) -> str:
         return ""
 
 
+def search_stock(query: str, limit: int = 10) -> list[dict]:
+    """按名称或代码模糊搜索股票，返回 [{code, name}, ...]"""
+    global stock_name_cache
+    if stock_name_cache is None:
+        _ensure_stock_names_cache()
+        if os.path.exists(STOCK_NAMES_CACHE_PATH):
+            try:
+                with open(STOCK_NAMES_CACHE_PATH, "r", encoding="utf-8") as f:
+                    stock_name_cache = json.load(f)
+            except Exception:
+                pass
+    if stock_name_cache is None:
+        return []
+
+    query = query.strip().upper().replace(" ", "")
+    results = []
+    for code, name in stock_name_cache.items():
+        clean_name = name.replace(" ", "")
+        if query in code or query in clean_name.upper():
+            results.append({"code": code, "name": clean_name})
+            if len(results) >= limit:
+                break
+    return results
+
+
 def cache_path(symbol: str, module: str = "") -> str:
     """获取缓存文件路径"""
     if module:
@@ -128,27 +165,37 @@ def cache_path(symbol: str, module: str = "") -> str:
 
 
 def read_cache(symbol: str, module: str = "") -> Optional[dict]:
-    """读取缓存"""
+    """线程安全读取缓存"""
     path = cache_path(symbol, module)
-    if os.path.exists(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                data["from_cache"] = True
-                return data
-        except Exception:
-            pass
+    lock = _get_cache_lock(path)
+    with lock:
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    data["from_cache"] = True
+                    return data
+            except Exception:
+                pass
     return None
 
 
 def write_cache(symbol: str, data: dict, module: str = ""):
-    """写入缓存"""
+    """线程安全写入缓存（原子写入：先写 tmp 再 rename）"""
     path = cache_path(symbol, module)
-    try:
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False)
-    except Exception:
-        pass
+    tmp_path = path + ".tmp"
+    lock = _get_cache_lock(path)
+    with lock:
+        try:
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False)
+            os.replace(tmp_path, path)
+        except Exception:
+            try:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+            except Exception:
+                pass
 
 
 SKILLS_DIR = os.path.join(PROMPTS_DIR, "skills")
