@@ -15,6 +15,7 @@ from ..core import (
     format_pct,
     normalize_symbol,
     extract_pure_code,
+    get_stock_name,
     load_prompts,
     read_cache,
     write_cache,
@@ -33,7 +34,7 @@ ZT_RISK_PROMPT = PROMPTS.get("ZT_RISK_PROMPT", "")
 def get_risk_pool(
     date: str = Query("", description="日期 YYYYMMDD，默认最新"),
 ):
-    """获取热门关注池数据（涨停板 + 龙虎榜）"""
+    """获取热门关注池数据（涨停板 + 人气榜）"""
     try:
         # 1. 获取涨停池数据
         target_date = date if date else datetime.now().strftime("%Y%m%d")
@@ -54,64 +55,56 @@ def get_risk_pool(
                         "market_cap": float(row.get("流通市值", 0) or 0),
                     })
         except Exception:
-            pass  # 涨停数据获取失败不影响整体
+            pass
 
-        # 2. 获取龙虎榜数据
-        lhb_stocks = []
+        # 2. 获取人气榜数据
+        hot_stocks = []
         try:
-            df_lhb = data_akshare.get_lhb_detail()
-            if df_lhb is not None and not df_lhb.empty:
-                # 按代码去重，取最新一条
-                seen = {}
-                for _, row in df_lhb.iterrows():
-                    code = str(row.get("代码", ""))
-                    if code not in seen:
-                        net_amount = float(row.get("龙虎榜净买额", 0) or 0)
-                        seen[code] = {
-                            "code": code,
-                            "name": str(row.get("名称", "")),
-                            "source": "龙虎榜",
-                            "source_label": "🔥人气",
-                            "board": 0,
-                            "industry": "",  # 龙虎榜数据中没有行业字段
-                            "turnover": float(row.get("换手率", 0) or 0),
-                            "amount": float(row.get("龙虎榜成交额", 0) or 0),
-                            "market_cap": float(row.get("流通市值", 0) or 0),
-                            "net_amount": net_amount,  # 龙虎榜特有
-                            "reason": str(row.get("上榜原因", "") or ""),  # 龙虎榜特有
-                            "change_pct": float(row.get("涨跌幅", 0) or 0),  # 龙虎榜特有
-                        }
-                lhb_stocks = list(seen.values())
+            df_hot = data_akshare.get_hot_rank_all()
+            if df_hot is not None and not df_hot.empty:
+                for _, row in df_hot.iterrows():
+                    raw_code = str(row.get("代码", ""))
+                    pure = raw_code.lstrip("SH").lstrip("SZ").lstrip("BJ")
+                    name = str(row.get("股票名称", "")) or get_stock_name(pure) or ""
+                    hot_stocks.append({
+                        "code": pure,
+                        "name": name,
+                        "source": "人气",
+                        "source_label": "🔥人气",
+                        "board": 0,
+                        "industry": "",
+                        "turnover": 0,
+                        "amount": 0,
+                        "market_cap": 0,
+                        "rank": int(row.get("当前排名", 0) or 0),
+                        "change_pct": float(row.get("涨跌幅", 0) or 0),
+                    })
         except Exception:
-            pass  # 龙虎榜数据获取失败不影响整体
+            pass
 
-        # 3. 合并数据
-        all_stocks = zt_stocks + lhb_stocks
-
-        # 统计
-        total = len(all_stocks)
-        high_risk_count = 0  # 后续可由 AI 评估填充
+        # 3. 合并数据：涨停在前，人气在后
+        all_stocks = zt_stocks + hot_stocks
 
         # 清理 NaN 值
         def clean_stock(stock):
             cleaned = {}
             for k, v in stock.items():
-                if isinstance(v, float) and (v != v):  # NaN check
+                if isinstance(v, float) and (v != v):
                     cleaned[k] = 0
                 else:
                     cleaned[k] = v
             return cleaned
 
-        # 限制返回数量：涨停5个 + 龙虎榜5个
-        zt_limited = all_stocks[:5]
-        lhb_limited = all_stocks[5:10]
-        limited_stocks = zt_limited + lhb_limited
+        # 限制返回数量：涨停不限制（通常不多），人气取前10
+        zt_limited = zt_stocks
+        hot_limited = hot_stocks[:10]
+        limited_stocks = zt_limited + hot_limited
 
         return {
             "date": target_date,
-            "total": total,
+            "total": len(zt_stocks) + len(hot_stocks),
             "zt_count": len(zt_stocks),
-            "lhb_count": len(lhb_stocks),
+            "hot_count": len(hot_stocks),
             "stocks": [clean_stock(s) for s in limited_stocks],
         }
     except Exception as e:

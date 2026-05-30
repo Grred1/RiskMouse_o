@@ -140,6 +140,37 @@ def get_hot_rank_latest_all():
         return None
 
 
+def get_hot_rank_all():
+    """获取全市场人气榜（前100名）
+    
+    注意：AKShare 自带的 stock_hot_rank_em() 依赖 push2 行情接口（不稳定），
+    本函数改用 POST 方式直接获取排名数据 + 本地股票名称缓存。
+    """
+    try:
+        import requests as req
+        url = "https://emappdata.eastmoney.com/stockrank/getAllCurrentList"
+        payload = {"appId": "appId01", "globalId": "786e4c21-70dc-435a-93bb-38", "marketType": "", "pageNo": 1, "pageSize": 100}
+        r = req.post(url, json=payload, timeout=15)
+        data = r.json()
+        rows = data.get("data", [])
+        if not rows:
+            return None
+        records = []
+        for item in rows:
+            raw_code = item.get("sc", "")
+            rank = item.get("rk", 0)
+            pure = raw_code.lstrip("SH").lstrip("SZ").lstrip("BJ")
+            records.append({
+                "当前排名": rank,
+                "代码": raw_code,
+            })
+        import pandas as pd
+        return pd.DataFrame(records)
+    except Exception as e:
+        logger.warning("get_hot_rank_all() 失败: %s", e)
+        return None
+
+
 # ── K线行情 ──────────────────────────────────────────────────────
 
 def get_stock_history(symbol: str, period: str = "daily",

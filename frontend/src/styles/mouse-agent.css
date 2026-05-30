@@ -184,6 +184,21 @@
   background: none;
 }
 .ma-notif-clear:hover { color: #c0392b; }
+.ma-notif-header-btns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ma-notif-close {
+  font-size: 14px;
+  color: #999;
+  cursor: pointer;
+  border: none;
+  background: none;
+  line-height: 1;
+  padding: 0;
+}
+.ma-notif-close:hover { color: #333; }
 .ma-notif-list {
   overflow-y: auto;
   max-height: 240px;

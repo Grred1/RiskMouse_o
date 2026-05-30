@@ -83,7 +83,7 @@ function renderWatchlistGrid() {
     const grid = document.getElementById('savedGrid');
     if (!grid) return;
     const slots = [];
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 10; i++) {
         const s = watchlistStocks[i];
         if (!s) {
             slots.push(`<div class="saved-card saved-card-empty">

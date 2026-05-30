@@ -69,9 +69,13 @@ function renderRiskPool() {
 
     let html = '';
     filtered.forEach((stock) => {
-        const sourceTag = stock.source === '涨停'
-            ? '<span class="zt-tag zt-tag-purple">🟣</span>'
-            : '<span class="zt-tag zt-tag-orange">🔥</span>';
+        let sourceTag;
+        if (stock.source === '涨停') {
+            sourceTag = '<span class="zt-tag zt-tag-purple">🟣</span>';
+        } else {
+            const rank = stock.rank ? ` #${stock.rank}` : '';
+            sourceTag = `<span class="zt-tag zt-tag-orange">🔥${rank}</span>`;
+        }
 
         const isActive = currentRiskStock && currentRiskStock.code === stock.code;
 
@@ -85,6 +89,85 @@ function renderRiskPool() {
     });
 
     tbody.innerHTML = html;
+}
+
+async function manualAnalyzeStock() {
+    const input = document.getElementById('ztManualInput');
+    let code = input.value.trim();
+    if (!code) return;
+
+    code = code.replace(/^[SsHhZzBbJj]{2}/, '').trim();
+    if (!/^\d{6}$/.test(code)) {
+        document.getElementById('ztError').textContent = '请输入正确的6位数字股票代码';
+        return;
+    }
+
+    document.getElementById('ztError').textContent = '';
+    input.value = '';
+
+    const detailPanel = document.getElementById('ztDetailPanel');
+    detailPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    const loading = document.getElementById('ztDetailLoading');
+    const header = document.getElementById('ztDetailHeader');
+    const content = document.getElementById('ztDetailContent');
+    header.textContent = `${code} 分析中...`;
+    loading.style.display = 'flex';
+    content.style.display = 'none';
+
+    try {
+        const res = await fetch(`/api/risk/analyze`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code, name: '', source: '手动', industry: '', board: 0 })
+        });
+        const analysisData = await res.json();
+        const name = analysisData.name || code;
+
+        currentRiskStock = { code, name, source: '手动', industry: '' };
+        header.textContent = `${name} (${code})`;
+        loading.style.display = 'none';
+        content.style.display = 'block';
+
+        const starRow = document.getElementById('ztStarRow');
+        if (starRow) {
+            if (analysisData.scores && analysisData.scores.length > 0) {
+                starRow.innerHTML = renderStarBadges(analysisData.scores);
+                starRow.style.display = 'flex';
+            } else {
+                starRow.style.display = 'none';
+            }
+        }
+
+        const analysisArea = document.getElementById('ztAnalysisArea');
+        if (analysisData.error) {
+            analysisArea.innerHTML = `<div class="risk-error">风险分析失败: ${analysisData.error}</div>`;
+        } else if (analysisData.scores && analysisData.scores.length > 0) {
+            analysisArea.innerHTML = renderRiskScores(analysisData);
+        } else if (analysisData.risk_analysis) {
+            analysisArea.innerHTML = renderFallbackText(analysisData.risk_analysis);
+        } else if (analysisData.analysis) {
+            analysisArea.innerHTML = `<div class="risk-fallback-text">${analysisData.analysis}</div>`;
+        } else {
+            analysisArea.innerHTML = '<div class="risk-error">暂无风险分析数据</div>';
+        }
+
+        const logicArea = document.getElementById('ztLogicArea');
+        try {
+            const pureCode = code.replace(/^(SH|SZ|BJ)/, '');
+            const gubaRes = await fetch(`/api/risk/guba?code=${pureCode}`);
+            const gubaData = await gubaRes.json();
+            renderGubaData(logicArea, gubaData);
+        } catch {
+            logicArea.textContent = '暂无股吧数据';
+        }
+
+        renderRiskPool();
+    } catch (err) {
+        loading.style.display = 'none';
+        content.style.display = 'block';
+        document.getElementById('ztAnalysisArea').textContent = '获取分析失败: ' + err.message;
+    }
 }
 
 async function showRiskDetail(code, name, source, industry) {

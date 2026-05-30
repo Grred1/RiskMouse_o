@@ -43,7 +43,10 @@ class MouseAssistant extends HTMLElement {
         <div class="ma-notif-panel" id="ma-notif-panel">
           <div class="ma-notif-header">
             <span>🔔 小老鼠提醒</span>
-            <button class="ma-notif-clear" id="ma-notif-clear">清空</button>
+            <div class="ma-notif-header-btns">
+              <button class="ma-notif-clear" id="ma-notif-clear">清空</button>
+              <button class="ma-notif-close" id="ma-notif-close">✕</button>
+            </div>
           </div>
           <div class="ma-notif-list" id="ma-notif-list"></div>
         </div>
@@ -113,6 +116,7 @@ class MouseAssistant extends HTMLElement {
       this.updateNotifPanel();
       this.updateBubble();
     });
+    this.$("#ma-notif-close").addEventListener("click", () => this.closeNotifPanel());
 
     this.bindDrag();
   }
@@ -287,6 +291,14 @@ class MouseAssistant extends HTMLElement {
       panel.classList.remove("open");
       panel.style.display = "none";
     }
+  }
+
+  closeNotifPanel() {
+    this._notifOpen = false;
+    const panel = this.$("#ma-notif-panel");
+    if (!panel) return;
+    panel.classList.remove("open");
+    panel.style.display = "none";
   }
 
   // ── 聊天 ──────────────────────────────────────────────────

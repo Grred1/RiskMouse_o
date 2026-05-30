@@ -366,7 +366,7 @@ body.sidebar-hidden {
 /* 左+中：内部再分两列 */
 .panel-group-lc {
   display: grid;
-  grid-template-columns: 268px 1fr;
+  grid-template-columns: minmax(220px, 268px) 1fr;
   gap: 12px;
 }
 /* 右侧：flex 列 */
@@ -523,11 +523,11 @@ body.sidebar-hidden {
 .saved-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  grid-template-rows: repeat(3, 1fr);
   gap: 8px;
   padding: 10px 12px 12px;
   flex: 1;
   min-height: 0;
+  overflow-y: auto;
 }
 
 .saved-empty {
@@ -550,6 +550,7 @@ body.sidebar-hidden {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  height: 110px;
 }
 .saved-card:hover {
   background: rgba(255,255,255,0.90) !important;

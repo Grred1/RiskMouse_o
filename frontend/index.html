@@ -7,8 +7,8 @@
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     <link rel="stylesheet" href="src/styles/common.css?v=27">
     <link rel="stylesheet" href="src/styles/finance.css?v=7">
-    <link rel="stylesheet" href="src/styles/zt.css?v=7">
-    <link rel="stylesheet" href="src/styles/watchlist.css?v=15">
+    <link rel="stylesheet" href="src/styles/zt.css?v=9">
+    <link rel="stylesheet" href="src/styles/watchlist.css?v=17">
 </head>
 <body>
 
@@ -214,11 +214,15 @@
                         <select id="sourceFilter" onchange="filterRiskPool()" class="zt-filters-select">
                             <option value="all">全部</option>
                             <option value="涨停">🟣涨停</option>
-                            <option value="龙虎榜">🔥龙虎</option>
+                            <option value="人气">🔥人气</option>
                         </select>
                         <select id="industryFilter" onchange="filterRiskPool()" class="zt-filters-select">
                             <option value="all">全部行业</option>
                         </select>
+                    </div>
+                    <div class="zt-manual-row">
+                        <input type="text" id="ztManualInput" placeholder="输入股票代码，如 002081" maxlength="10" onkeydown="if(event.key==='Enter')manualAnalyzeStock()">
+                        <button onclick="manualAnalyzeStock()">分析</button>
                     </div>
                     <div style="flex:1;overflow-y:auto;min-height:0;" id="ztListContainer">
                         <table class="zt-table">
@@ -480,16 +484,16 @@
 <script src="src/js/finance-charts.js?v=7"></script>
 <script src="src/js/finance-ai.js?v=7"></script>
 <script src="src/js/risk.js?v=6"></script>
-<script src="src/js/risk-pool.js?v=6"></script>
+<script src="src/js/risk-pool.js?v=7"></script>
 <script src="src/js/risk-analysis.js?v=6"></script>
 <script src="src/js/macro.js?v=11"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-<script src="src/js/watchlist-core.js?v=10"></script>
+<script src="src/js/watchlist-core.js?v=11"></script>
 <script src="src/js/watchlist-analysis.js?v=8"></script>
 <script src="src/js/watchlist-diary.js?v=7"></script>
 
-<link rel="stylesheet" href="src/styles/mouse-agent.css?v=7">
-  <script src="src/js/mouse-agent.js?v=7"></script>
+<link rel="stylesheet" href="src/styles/mouse-agent.css?v=8">
+  <script src="src/js/mouse-agent.js?v=8"></script>
   <mouse-assistant></mouse-assistant>
 </body>
 </html>
