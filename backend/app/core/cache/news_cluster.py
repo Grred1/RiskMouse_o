@@ -78,6 +78,7 @@ class NewsCluster:
         c.summary = d.get("summary", "")
         c.urls = d.get("urls", [])
         c.sources = d.get("sources", [])
+        c.dates = d.get("dates", [])
         c.first_date = d.get("first_date", "")
         c.last_date = d.get("last_date", "")
         c.hit_count = d.get("hit_count", 1)

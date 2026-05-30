@@ -38,6 +38,7 @@ function riskDot(level) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 let pollTimer = null;
+let progressTimer = null;
 
 async function fetchMacroRiskTimeline(refresh = false, background = false) {
     const container = document.getElementById('macroCalendarContent');
@@ -52,57 +53,145 @@ async function fetchMacroRiskTimeline(refresh = false, background = false) {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const data = await r.json();
         if (data.error) throw new Error(data.error);
+
+        // background_updating: 后端返回了旧缓存，立即渲染，后台静默更新
+        if (data.cache_status === 'background_updating' && data.timeline) {
+            macroData = data;
+            renderMacroView();
+            startProgressPolling();
+            return;
+        }
+
+        // 后台采集刚启动，无缓存可用 → 显示进度
+        if (data.cache_status === 'background_started' || data.cache_status === 'no_cache') {
+            macroData = data;
+            renderProgressView(null);
+            startProgressPolling();
+            return;
+        }
+
         macroData = data;
-
-        // 首次无缓存 → 自动触发后台采集 + 轮询等待
-        if (data.cache_status === 'no_cache') {
-            container.innerHTML = '<div class="macro-loading"><div class="spinner"></div>首次加载中，正在采集宏观风险数据 (约1-2分钟)...</div>';
-            fetch('/api/macro/risk-timeline?refresh=true&background=true&days=30').catch(() => {});
-            startPolling();
-            return;
-        }
-
-        // 后台采集已启动 → 已在有缓存时保留当前视图，只在无数据时显示 loading
-        if (data.cache_status === 'background_started' || data.cache_status === 'background_updating') {
-            if (!macroData || !macroData.timeline) {
-                container.innerHTML = '<div class="macro-loading"><div class="spinner"></div>正在更新数据...</div>';
-            }
-            startPolling();
-            return;
-        }
-
         renderMacroView();
     } catch (e) {
         container.innerHTML = `<div class="macro-error">数据加载失败: ${e.message}</div>`;
     }
 }
 
-function startPolling() {
+const PROGRESS_STAGES = [
+  { stage: 'fetching',    icon: '\ud83d\udce1', label: '采集' },
+  { stage: 'clustering',  icon: '\ud83d\udd17', label: '聚类' },
+  { stage: 'llm_filtering', icon: '\ud83e\udd16', label: '过滤' },
+  { stage: 'llm_timing',  icon: '\u23f1\ufe0f', label: '计时' },
+  { stage: 'merging',     icon: '\ud83d\udce6', label: '合并' },
+  { stage: 'caching',     icon: '\ud83d\udcbe', label: '缓存' },
+  { stage: 'done',        icon: '\u2705',       label: '完成' },
+];
+
+function startProgressPolling() {
+    if (progressTimer) clearInterval(progressTimer);
     if (pollTimer) clearInterval(pollTimer);
-    // 2秒后开始轮询，每5秒查一次，最多查60次（5分钟）
-    setTimeout(() => {
-        let attempts = 0;
-        pollTimer = setInterval(async () => {
-            attempts++;
-            if (attempts > 60) {
-                clearInterval(pollTimer);
-                pollTimer = null;
-                const container = document.getElementById('macroCalendarContent');
-                if (container) container.innerHTML = '<div class="macro-error">数据加载超时，请点击刷新重试</div>';
-                return;
+    pollTimer = null;
+
+    pollProgress();
+    progressTimer = setInterval(pollProgress, 2000);
+}
+
+async function pollProgress() {
+    try {
+        const r = await fetch('/api/macro/refresh-progress?days=30');
+        const prog = await r.json();
+        if (!prog || prog.stage === 'idle') return;
+
+        const container = document.getElementById('macroCalendarContent');
+        if (!container) return;
+
+        const bar = document.getElementById('macroProgressBar');
+        if (bar) {
+            // inline 模式下，只更新数值和阶段
+            bar.querySelector('.macro-progress-fill').style.width = prog.percent + '%';
+            const titleEl = bar.querySelector('.macro-progress-inline-title');
+            const pctEl = bar.querySelector('.macro-progress-inline-pct');
+            const detailEl = bar.querySelector('.macro-progress-inline-detail');
+            const icon = PROGRESS_STAGES.find(s => s.stage === prog.stage)?.icon || '\ud83d\udd04';
+            if (titleEl) titleEl.innerHTML = `${icon} ${prog.detail}`;
+            if (pctEl) pctEl.textContent = prog.percent + '%';
+            if (detailEl) detailEl.textContent = prog.detail;
+            if (prog.stage === 'done') {
+                bar.classList.add('done');
             }
-            try {
-                const r = await fetch('/api/macro/risk-timeline?refresh=false&days=30');
-                const data = await r.json();
-                if (data && data.timeline && (data.timeline.past?.events?.length > 0 || data.timeline.current?.events?.length > 0 || data.timeline.future?.events?.length > 0)) {
-                    clearInterval(pollTimer);
-                    pollTimer = null;
-                    macroData = data;
-                    renderMacroView();
-                }
-            } catch (e) {}
-        }, 5000);
-    }, 5000);
+        } else {
+            renderProgressView(prog);
+        }
+
+        if (prog.stage === 'done') {
+            if (progressTimer) clearInterval(progressTimer);
+            progressTimer = null;
+            setTimeout(async () => {
+                try {
+                    const r2 = await fetch('/api/macro/risk-timeline?refresh=false&days=30');
+                    const fresh = await r2.json();
+                    if (fresh && fresh.timeline) {
+                        macroData = fresh;
+                        renderMacroView();
+                    }
+                } catch (e) {}
+            }, 1000);
+        }
+    } catch (e) {}
+}
+
+function renderProgressView(prog) {
+    const container = document.getElementById('macroCalendarContent');
+    if (!container) return;
+    const pct = prog ? prog.percent : 0;
+    const stage = prog ? prog.stage : 'fetching';
+    const detail = prog ? prog.detail : '正在采集宏观风险数据...';
+    const R = 44, circumference = 2 * Math.PI * R;
+    const offset = circumference - (pct / 100) * circumference;
+    const currentIcon = PROGRESS_STAGES.find(s => s.stage === stage)?.icon || '\ud83d\udd04';
+    const currentTitle = PROGRESS_STAGES.find(s => s.stage === stage)?.label || '处理中';
+
+    let dotsHtml = '';
+    for (let i = 0; i < PROGRESS_STAGES.length; i++) {
+        const s = PROGRESS_STAGES[i];
+        let cls = '';
+        let lineCls = '';
+        if (s.stage === stage) { cls = 'active'; lineCls = 'active'; }
+        else if (i < PROGRESS_STAGES.findIndex(x => x.stage === stage)) { cls = 'done'; lineCls = 'done'; }
+        if (i > 0 && PROGRESS_STAGES[i-1].stage === stage) lineCls = 'active';
+        dotsHtml += `
+            <div class="macro-progress-dot ${cls}">
+                <div class="macro-progress-dot-circle">${cls === 'done' ? '\u2713' : s.icon}</div>
+                <div class="macro-progress-dot-label">${s.label}</div>
+                ${i < PROGRESS_STAGES.length - 1 ? `<div class="macro-progress-dot-line ${lineCls}"></div>` : ''}
+            </div>
+        `;
+    }
+
+    container.innerHTML = `
+        <div class="macro-progress-page">
+            <svg width="0" height="0" style="position:absolute">
+                <defs>
+                    <linearGradient id="macroGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stop-color="#4f8fdc" />
+                        <stop offset="100%" stop-color="#7bb3f0" />
+                    </linearGradient>
+                </defs>
+            </svg>
+            <div class="macro-progress-ring">
+                <svg viewBox="0 0 100 100">
+                    <circle class="macro-progress-ring-bg" cx="50" cy="50" r="44" />
+                    <circle class="macro-progress-ring-fill" cx="50" cy="50" r="44"
+                        stroke-dasharray="${circumference}" stroke-dashoffset="${offset}" />
+                </svg>
+                <div class="macro-progress-ring-icon">${currentIcon}</div>
+            </div>
+            <div class="macro-progress-title">宏观风险数据刷新中</div>
+            <div class="macro-progress-detail">${detail}</div>
+            <div class="macro-progress-stage-dots">${dotsHtml}</div>
+            <div class="macro-progress-pct-text">${pct}%</div>
+        </div>
+    `;
 }
 
 function refreshData() {
@@ -110,7 +199,11 @@ function refreshData() {
         clearInterval(pollTimer);
         pollTimer = null;
     }
-    // 先展示已有缓存（让用户立刻看到反馈），再静默后台更新
+    if (progressTimer) {
+        clearInterval(progressTimer);
+        progressTimer = null;
+    }
+    // 先展示已有缓存，再触发后台刷新
     if (macroData && macroData.timeline) {
         renderMacroView();
     }
@@ -140,6 +233,17 @@ function renderMacroView() {
 
     const html = `
         <div class="macro-timeline-wrap">
+            ${progressTimer ? `
+            <div class="macro-progress-wrap inline" id="macroProgressBar">
+                <div class="macro-progress-inline-header">
+                    <span class="macro-progress-inline-title">🔄 正在刷新宏观数据...</span>
+                    <span class="macro-progress-inline-pct">0%</span>
+                </div>
+                <div class="macro-progress-track">
+                    <div class="macro-progress-fill" style="width:0%"></div>
+                </div>
+                <div class="macro-progress-inline-detail">正在采集新闻数据...</div>
+            </div>` : ''}
             <div class="tl-stats-bar">
                 <div class="tl-stat-card tl-past" onclick="switchFilter('time','past')">
                     <div class="tl-stat-icon">📋</div>
@@ -171,7 +275,6 @@ function renderMacroView() {
                     <button class="rc-btn-refresh" style="background:${selectedView==='timeline'?'#4f8fdc':'#888'}" onclick="switchView('timeline')">📋 时间轴</button>
                     <button class="rc-btn-refresh" style="background:${selectedView==='calendar'?'#4f8fdc':'#888'}" onclick="switchView('calendar')">📅 月历</button>
                     <button class="rc-btn-refresh" onclick="refreshData()">🔄 刷新数据</button>
-                    ${pollTimer ? '<span style="color:#e67e22;font-size:11px;margin-left:8px;">⟳ 后台更新中...</span>' : ''}
                 </div>
             </div>
 

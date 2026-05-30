@@ -252,6 +252,115 @@ table tr:hover td { background: rgba(79, 143, 220, 0.05); color: #1e3252; }
 }
 .macro-fetch-btn:hover { background: #3a7bc8; }
 
+/* ══ 宏观日历刷新进度条 ══ */
+.macro-progress-page {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; padding: 50px 20px; min-height: 320px;
+}
+.macro-progress-ring {
+  position: relative; width: 100px; height: 100px; margin-bottom: 10px;
+}
+.macro-progress-ring svg {
+  transform: rotate(-90deg); width: 100px; height: 100px;
+}
+.macro-progress-ring-bg { fill: none; stroke: #e8e8e8; stroke-width: 6; }
+.macro-progress-ring-fill {
+  fill: none; stroke: url(#macroGrad); stroke-width: 6;
+  stroke-linecap: round; transition: stroke-dashoffset 0.6s ease;
+}
+.macro-progress-ring-icon {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  font-size: 32px; line-height: 1;
+}
+.macro-progress-title {
+  font-size: 15px; font-weight: 600; color: #333; margin-bottom: 4px;
+}
+.macro-progress-detail {
+  font-size: 13px; color: #888; margin-bottom: 20px; text-align: center;
+  max-width: 360px;
+}
+.macro-progress-stage-dots {
+  display: flex; align-items: center; gap: 0; max-width: 480px;
+  width: 100%; justify-content: center;
+}
+.macro-progress-dot {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  position: relative; flex: 1; max-width: 64px;
+}
+.macro-progress-dot-circle {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: #e8e8e8; border: 2px solid #d0d0d0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; transition: all 0.4s ease; position: relative; z-index: 2;
+  color: #aaa;
+}
+.macro-progress-dot.active .macro-progress-dot-circle {
+  background: #4f8fdc; border-color: #3a7bc8; color: #fff;
+  box-shadow: 0 0 0 4px rgba(79,143,220,0.2);
+}
+.macro-progress-dot.done .macro-progress-dot-circle {
+  background: #27ae60; border-color: #1e8449; color: #fff;
+}
+.macro-progress-dot-label {
+  font-size: 10px; color: #bbb; text-align: center;
+  transition: color 0.3s; white-space: nowrap;
+}
+.macro-progress-dot.active .macro-progress-dot-label { color: #4f8fdc; font-weight: 600; }
+.macro-progress-dot.done .macro-progress-dot-label { color: #27ae60; font-weight: 600; }
+.macro-progress-dot-line {
+  position: absolute; top: 12px; right: 50%; width: 100%;
+  height: 2px; background: #e0e0e0; z-index: 1;
+}
+.macro-progress-dot:last-child .macro-progress-dot-line { display: none; }
+.macro-progress-dot-line.done { background: #27ae60; }
+.macro-progress-dot-line.active { background: linear-gradient(90deg, #27ae60, #4f8fdc); }
+.macro-progress-pct-text {
+  font-size: 22px; font-weight: 700; color: #4f8fdc; margin-top: 16px;
+}
+.macro-progress-wrap.done .macro-progress-pct-text { color: #27ae60; }
+
+/* ── inline 进度条（有缓存时刷新，嵌在视图顶部）── */
+.macro-progress-wrap.inline {
+  margin: 0 0 12px 0; padding: 14px 18px;
+  background: linear-gradient(135deg, #f0f4ff, #e8f0fe);
+  border-radius: 10px; border: 1px solid #d0dfff;
+}
+.macro-progress-inline-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 8px;
+}
+.macro-progress-inline-title {
+  font-size: 13px; font-weight: 600; color: #4f8fdc; display: flex; align-items: center; gap: 6px;
+}
+.macro-progress-inline-pct {
+  font-size: 13px; font-weight: 700; color: #4f8fdc;
+}
+.macro-progress-track {
+  width: 100%; height: 6px; background: #d0dfff; border-radius: 3px; overflow: hidden;
+}
+.macro-progress-fill {
+  height: 100%; background: linear-gradient(90deg, #4f8fdc, #7bb3f0);
+  border-radius: 3px; transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  position: relative;
+}
+.macro-progress-fill::after {
+  content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 20px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4));
+  border-radius: 3px;
+}
+.macro-progress-wrap.inline.done {
+  background: linear-gradient(135deg, #e8f8ef, #d0f0e0); border-color: #a0e0c0;
+}
+.macro-progress-wrap.inline.done .macro-progress-inline-title,
+.macro-progress-wrap.inline.done .macro-progress-inline-pct { color: #27ae60; }
+.macro-progress-wrap.inline.done .macro-progress-fill {
+  background: linear-gradient(90deg, #27ae60, #4cd683);
+}
+.macro-progress-inline-detail {
+  font-size: 11px; color: #888; margin-top: 4px;
+}
+.macro-progress-wrap.inline.done .macro-progress-inline-detail { color: #27ae60; }
+
 /* 统计栏 */
 .tl-stats-bar {
   display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;

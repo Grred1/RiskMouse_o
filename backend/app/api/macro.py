@@ -30,49 +30,35 @@ router = APIRouter(prefix="/api", tags=["宏观风险"])
 # 聚类引擎单例
 _cluster_engine = NewsClusterEngine()
 
-# ══════════════════════════════════════════════════════════════════════════════
-# 工具函数
-# ══════════════════════════════════════════════════════════════════════════════
+# ── 刷新进度追踪 ──────────────────────────────────────────────
 
-def _parse_date(raw) -> str:
-    if not raw:
-        return datetime.now().strftime("%Y-%m-%d")
-    if isinstance(raw, int):
-        ts = raw
-        if ts > 1e12: ts //= 1000
-        try: return datetime.fromtimestamp(ts).strftime("%Y-%m-%d")
-        except: return datetime.now().strftime("%Y-%m-%d")
-    raw_str = str(raw).strip()
-    if raw_str.isdigit():
-        try:
-            ts = int(raw_str)
-            if ts > 1e12: ts //= 1000
-            return datetime.fromtimestamp(ts).strftime("%Y-%m-%d")
-        except: pass
-    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S",
-                "%Y/%m/%d %H:%M:%S", "%Y-%m-%d", "%Y%m%d"):
-        try: return datetime.strptime(raw_str[:len(fmt)], fmt).strftime("%Y-%m-%d")
-        except: pass
-    m = re.search(r"(\d{4})[/-](\d{1,2})[/-](\d{1,2})", raw_str)
-    if m: return f"{m.group(1)}-{m.group(2).zfill(2)}-{m.group(3).zfill(2)}"
-    return datetime.now().strftime("%Y-%m-%d")
+_update_progress: dict[str, dict] = {}
 
-def _parse_llm_json(text: str) -> list | dict:
-    text = text.strip()
-    text = re.sub(r"^```[a-z]*\n?", "", text)
-    text = re.sub(r"\n?```$", "", text)
-    text = text.strip()
-    try: return json.loads(text)
-    except:
-        m = re.search(r"\{[\s\S]*\}|\[[\s\S]*\]", text, re.DOTALL)
-        if m:
-            try: return json.loads(m.group())
-            except: pass
-    return None
+_PROGRESS_MAP = {
+    "idle":         ("等待中", 0),
+    "fetching":     ("正在采集新闻数据...", 5),
+    "clustering":   ("正在聚类相似新闻...", 20),
+    "llm_filtering":("AI 正在过滤风险事件...", 30),
+    "llm_timing":   ("AI 正在分析时间特征...", 60),
+    "merging":      ("正在合并历史事件...", 85),
+    "caching":      ("正在写入缓存...", 95),
+    "done":         ("更新完成", 100),
+}
 
-def _gen_event_key(title: str, date: str) -> str:
-    content = f"{title}_{date}"
-    return hashlib.md5(content.encode()).hexdigest()[:12]
+def _set_progress(cache_key: str, stage: str, detail: str = ""):
+    """更新刷新进度"""
+    label, percent = _PROGRESS_MAP.get(stage, ("", 0))
+    _update_progress[cache_key] = {
+        "stage": stage,
+        "detail": detail or label,
+        "percent": percent,
+        "updated_at": datetime.now().strftime("%H:%M:%S"),
+    }
+
+def _clear_progress(cache_key: str):
+    _update_progress.pop(cache_key, None)
+
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 数据采集（统一委托给 data.news）
@@ -281,6 +267,56 @@ def _save_persistent_events(data: dict) -> None:
     except Exception as e:
         logger.error(f"保存缓存失败: {e}")
 
+def _start_background_update(cache_key: str, days: int) -> dict:
+    """启动后台更新，优先返回已有缓存"""
+    cached = read_cache(cache_key, module="macro")
+    if cached:
+        cached["from_cache"] = True
+        cached["cache_status"] = "background_updating"
+
+    _set_progress(cache_key, "fetching")
+
+    import threading
+    def _background_update():
+        try:
+            existing = _load_persistent_events().get("events", [])
+            _set_progress(cache_key, "fetching")
+            official, social = _fetch_all_sources(days=days)
+            _set_progress(cache_key, "clustering", f"已采集 {len(official)+len(social)} 条新闻")
+            clusters = _cluster_news(official, social)
+            _set_progress(cache_key, "llm_filtering", f"聚类完成，共 {len(clusters)} 个独立事件")
+            filtered = _filter_risk_events(clusters)
+            _set_progress(cache_key, "llm_timing", f"风险过滤完成，保留 {len(filtered)} 条事件")
+            analyzed = _analyze_event_times(filtered)
+            _set_progress(cache_key, "merging", f"时间分析完成，共 {len(analyzed)} 条事件")
+            merged = _merge_events(existing, analyzed)
+            _save_persistent_events({"events": merged})
+            _set_progress(cache_key, "caching", f"合并完成，共 {len(merged)} 条事件")
+            timeline = _classify_timeline_events(merged)
+            all_stats = {"total": len(merged), "raw_count": len(official) + len(social)}
+            data = {"timeline": timeline, "stats": all_stats, "fetched_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+            write_cache(cache_key, data, module="macro")
+            _set_progress(cache_key, "done", f"更新完成，共 {len(merged)} 条事件")
+        except Exception as e:
+            logger.error(f"宏观日历后台更新失败: {e}")
+            _set_progress(cache_key, "done", f"更新失败: {e}")
+            # 回退：用 persistent 事件库兜底写缓存
+            try:
+                fallback = _load_persistent_events().get("events", [])
+                if fallback:
+                    timeline = _classify_timeline_events(fallback)
+                    all_stats = {"total": len(fallback), "raw_count": 0}
+                    data = {"timeline": timeline, "stats": all_stats, "fetched_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+                    write_cache(cache_key, data, module="macro")
+            except Exception:
+                pass
+    thread = threading.Thread(target=_background_update, daemon=True)
+    thread.start()
+
+    if cached:
+        return cached
+    return {"from_cache": False, "cache_status": "background_started"}
+
 def _merge_events(existing: list[dict], new: list[dict]) -> list[dict]:
     seen_titles = set()
     deduped_existing = []
@@ -357,37 +393,10 @@ def get_macro_risk_timeline(
             cached["from_cache"] = True
             cached["cache_status"] = "warm"
             return cached
-        return {
-            "timeline": {"past": {"events": [], "stats": {}}, "current": {"events": [], "stats": {}}, "future": {"events": [], "stats": {}}},
-            "stats": {"total": 0, "raw_count": 0},
-            "fetched_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "from_cache": False,
-            "cache_status": "no_cache",
-            "message": "暂无缓存数据，请点击刷新获取最新数据"
-        }
+        # 无缓存 → 自动触发后台采集，前端走 background_started 分支显示 loading
+        return _start_background_update(CACHE_KEY, days)
     if background:
-        cached = read_cache(CACHE_KEY, module="macro")
-        if cached: cached["from_cache"] = True; cached["cache_status"] = "background_updating"
-        import threading
-        def background_update():
-            try:
-                existing = _load_persistent_events().get("events", [])
-                official, social = _fetch_all_sources(days=days)
-                clusters = _cluster_news(official, social)
-                filtered = _filter_risk_events(clusters)
-                analyzed = _analyze_event_times(filtered)
-                merged = _merge_events(existing, analyzed)
-                _save_persistent_events({"events": merged})
-                timeline = _classify_timeline_events(merged)
-                all_stats = {"total": len(merged), "raw_count": len(official) + len(social)}
-                data = {"timeline": timeline, "stats": all_stats, "fetched_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-                write_cache(CACHE_KEY, data, module="macro")
-            except Exception as e:
-                logger.error(f"后台更新失败: {e}")
-        thread = threading.Thread(target=background_update, daemon=True)
-        thread.start()
-        if cached: return cached
-        return {"from_cache": False, "cache_status": "background_started"}
+        return _start_background_update(CACHE_KEY, days)
     try:
         existing = _load_persistent_events().get("events", [])
         existing_fingerprints = set()
@@ -424,3 +433,13 @@ def get_macro_risk_timeline(
             "fetched_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "from_cache": False, "error": str(e),
         }
+
+
+@router.get("/macro/refresh-progress")
+def get_refresh_progress(days: int = Query(30, description="天数，与 risk-timeline 对齐")):
+    """查询宏观日历刷新进度"""
+    CACHE_KEY = f"macro_risk_timeline_{days}d"
+    progress = _update_progress.get(CACHE_KEY)
+    if not progress:
+        return {"stage": "idle", "detail": "暂无刷新任务", "percent": 0}
+    return progress

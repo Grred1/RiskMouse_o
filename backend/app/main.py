@@ -81,4 +81,4 @@ def app_index():
     if os.path.exists(index_path):
         headers = {"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"}
         return FileResponse(index_path, headers=headers)
-    return {"message": "企业风控系统 API"}
+    return {"message": "RiskMouse — 财报基本面 × 舆论情绪 · 智能风控"}
