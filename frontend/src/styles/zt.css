@@ -129,7 +129,8 @@
     font-size: 12px;
 }
 .zt-table th {
-    background: rgba(248, 250, 252, 0.70);
+    /* 固定表头必须使用不透明背景，防止滚动行文字透到“代码/名称/来源”下方。 */
+    background: #f8fafc;
     padding: 9px 12px;
     text-align: left;
     font-weight: 600;
@@ -138,7 +139,8 @@
     border-bottom: 1px solid rgba(148, 163, 184, 0.18);
     position: sticky;
     top: 0;
-    z-index: 1;
+    z-index: 3;
+    box-shadow: 0 2px 4px rgba(31, 58, 93, 0.08);
 }
 .zt-table td {
     padding: 9px 12px;

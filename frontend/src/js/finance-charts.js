@@ -76,6 +76,11 @@ function renderGrowthCharts() {
     renderProfitabilityTrend(abstract);
 }
 
+function showChartPlaceholder(dom, panel, message = '无公开数据') {
+    if (panel) panel.style.display = '';
+    if (dom) dom.innerHTML = `<div class="chart-empty-state">${message}</div>`;
+}
+
 function renderKPI(latest) {
     const grid = document.getElementById('kpiGrid');
     grid.style.display = '';
@@ -124,9 +129,10 @@ function renderRevenueTrend(profit, abstract) {
     chart.setOption({
         tooltip: { trigger: 'axis' },
         legend: { data: ['营收(亿)', '净利润(亿)'], bottom: 5, left: 'center', textStyle: { fontSize: 12 } },
-        grid: { left: '6%', right: '7%', bottom: 62, top: 20, containLabel: true },
+        // 左侧预留给纵轴标题和刻度，避免在窄屏时挤成一团。
+        grid: { left: '17%', right: '7%', bottom: 70, top: 20, containLabel: true },
         xAxis: { type: 'category', data: labels, axisLabel: { fontSize: 11 } },
-        yAxis: { type: 'value', name: '金额(亿)', nameLocation: 'middle', nameRotate: 90, nameGap: 45, nameTextStyle: { fontSize: 11 }, axisLabel: { fontSize: 11 } },
+        yAxis: { type: 'value', name: '金额(亿)', nameLocation: 'middle', nameRotate: 90, nameGap: 48, nameTextStyle: { fontSize: 11 }, axisLabel: { fontSize: 11 } },
         series: [
             { name: '营收(亿)', type: 'bar', barWidth: '30%', itemStyle: { color: '#4f8fdc', borderRadius: [4,4,0,0] }, data: revenue },
             { name: '净利润(亿)', type: 'bar', barWidth: '30%', itemStyle: { color: '#34d399', borderRadius: [4,4,0,0] }, data: netProfit },
@@ -149,7 +155,7 @@ function renderBalanceStructure(balance) {
     chart.setOption({
         tooltip: { trigger: 'axis' },
         legend: { data: ['总资产(亿)', '总负债(亿)', '净资产(亿)'], bottom: 5, left: 'center', textStyle: { fontSize: 12 } },
-        grid: { left: '6%', right: '7%', bottom: 62, top: 20, containLabel: true },
+        grid: { left: '14%', right: '8%', bottom: 70, top: 20, containLabel: true },
         xAxis: { type: 'category', data: labels, axisLabel: { fontSize: 11 } },
         yAxis: { type: 'value', name: '金额(亿)', nameLocation: 'middle', nameRotate: 90, nameGap: 45, nameTextStyle: { fontSize: 11 }, axisLabel: { fontSize: 11 } },
         series: [
@@ -175,7 +181,7 @@ function renderCashFlow(cash) {
     chart.setOption({
         tooltip: { trigger: 'axis' },
         legend: { data: ['经营现金流(亿)', '投资现金流(亿)', '筹资现金流(亿)'], bottom: 5, left: 'center', textStyle: { fontSize: 12 } },
-        grid: { left: '6%', right: '7%', bottom: 62, top: 20, containLabel: true },
+        grid: { left: '14%', right: '8%', bottom: 70, top: 20, containLabel: true },
         xAxis: { type: 'category', data: labels, axisLabel: { fontSize: 11 } },
         yAxis: { type: 'value', name: '金额(亿)', nameLocation: 'middle', nameRotate: 90, nameGap: 45, nameTextStyle: { fontSize: 11 }, axisLabel: { fontSize: 11 } },
         series: [
@@ -194,12 +200,13 @@ function renderRDExpense(profit) {
 
     const annual = profit.filter(d => d.REPORT_TYPE === '年报').slice(-6);
     if (annual.length === 0 || !annual.some(d => d.RESEARCH_EXPENSE)) {
-        if (panel) panel.style.display = 'none';
         if (finChartInstances['rd']) { finChartInstances['rd'].dispose(); delete finChartInstances['rd']; }
+        showChartPlaceholder(dom, panel);
         return;
     }
     if (panel) panel.style.display = '';
 
+    dom.innerHTML = '';
     const chart = echarts.init(dom); finChartInstances['rd'] = chart;
     const labels = annual.map(d => d.REPORT_DATE.slice(0, 4));
     const rd = annual.map(d => d.RESEARCH_EXPENSE ? +(d.RESEARCH_EXPENSE / 1e8).toFixed(2) : 0);
@@ -208,7 +215,7 @@ function renderRDExpense(profit) {
     chart.setOption({
         tooltip: { trigger: 'axis' },
         legend: { data: ['研发投入(亿)', '同比增速(%)'], bottom: 5, left: 'center', textStyle: { fontSize: 12 } },
-        grid: { left: '6%', right: '7%', bottom: 62, top: 20, containLabel: true },
+        grid: { left: '14%', right: '10%', bottom: 70, top: 20, containLabel: true },
         xAxis: { type: 'category', data: labels, axisLabel: { fontSize: 11 } },
         yAxis: [
             { type: 'value', name: '金额(亿)', nameLocation: 'middle', nameRotate: 90, nameGap: 45, nameTextStyle: { fontSize: 11 }, axisLabel: { fontSize: 11 } },
@@ -229,12 +236,13 @@ function renderExpenseRate(profit) {
 
     const annual = profit.filter(d => d.REPORT_TYPE === '年报').slice(-5);
     if (annual.length === 0 || !annual.some(d => d.RESEARCH_EXPENSE || d.SALE_EXPENSE || d.MANAGE_EXPENSE)) {
-        if (panel) panel.style.display = 'none';
         if (finChartInstances['expense']) { finChartInstances['expense'].dispose(); delete finChartInstances['expense']; }
+        showChartPlaceholder(dom, panel);
         return;
     }
     if (panel) panel.style.display = '';
 
+    dom.innerHTML = '';
     const chart = echarts.init(dom); finChartInstances['expense'] = chart;
     const labels = annual.map(d => d.REPORT_DATE.slice(0, 4));
     const calcRate = (exp, rev) => { return exp && rev ? +((exp / rev) * 100).toFixed(2) : 0; };
@@ -250,10 +258,11 @@ function renderExpenseRate(profit) {
 
     chart.setOption({
         tooltip: { trigger: 'axis' },
-        legend: { data: legendData, top: 0, left: 'center', textStyle: { fontSize: 12 } },
-        grid: { left: '3%', right: '4%', bottom: '3%', top: '18%', containLabel: true },
+        // 图例统一放到底部：顶部不再与纵轴标题、刻度文字争抢空间。
+        legend: { type: 'scroll', data: legendData, bottom: 2, left: 'center', width: '88%', itemGap: 8, textStyle: { fontSize: 10 } },
+        grid: { left: '17%', right: '7%', bottom: 62, top: 20, containLabel: true },
         xAxis: { type: 'category', data: labels, axisLabel: { fontSize: 11 } },
-        yAxis: { type: 'value', name: '占比(%)', axisLabel: { fontSize: 11, formatter: '{value}%' }, min: 0 },
+        yAxis: { type: 'value', name: '占比(%)', nameLocation: 'middle', nameRotate: 90, nameGap: 48, nameTextStyle: { fontSize: 11 }, axisLabel: { fontSize: 11, formatter: '{value}%' }, min: 0 },
         series: seriesData,
     });
     window.addEventListener('resize', () => chart.resize());
@@ -266,12 +275,13 @@ function renderAssetExpansion(balance) {
 
     const annual = balance.filter(d => d.REPORT_TYPE === '年报').slice(-5);
     if (annual.length === 0 || !annual.some(d => d.FIXED_ASSET)) {
-        if (panel) panel.style.display = 'none';
         if (finChartInstances['assetExp']) { finChartInstances['assetExp'].dispose(); delete finChartInstances['assetExp']; }
+        showChartPlaceholder(dom, panel);
         return;
     }
     if (panel) panel.style.display = '';
 
+    dom.innerHTML = '';
     const chart = echarts.init(dom); finChartInstances['assetExp'] = chart;
     const labels = annual.map(d => d.REPORT_DATE.slice(0, 4));
     const fixed = annual.map(d => d.FIXED_ASSET ? +(d.FIXED_ASSET / 1e8).toFixed(2) : 0);
@@ -280,7 +290,7 @@ function renderAssetExpansion(balance) {
     chart.setOption({
         tooltip: { trigger: 'axis' },
         legend: { data: ['固定资产(亿)', '在建工程(亿)'], bottom: 5, left: 'center', textStyle: { fontSize: 12 } },
-        grid: { left: '6%', right: '7%', bottom: 62, top: 20, containLabel: true },
+        grid: { left: '14%', right: '8%', bottom: 70, top: 20, containLabel: true },
         xAxis: { type: 'category', data: labels, axisLabel: { fontSize: 11 } },
         yAxis: { type: 'value', name: '金额(亿)', nameLocation: 'middle', nameRotate: 90, nameGap: 45, nameTextStyle: { fontSize: 11 }, axisLabel: { fontSize: 11 } },
         series: [
@@ -298,30 +308,54 @@ function renderProfitabilityTrend(abstract) {
 
     const annual = abstract.filter(d => d['报告期'] && d['报告期'].endsWith('12-31')).slice(-5);
     if (annual.length === 0) {
-        if (panel) panel.style.display = 'none';
         if (finChartInstances['profitability']) { finChartInstances['profitability'].dispose(); delete finChartInstances['profitability']; }
+        showChartPlaceholder(dom, panel);
         return;
     }
     if (panel) panel.style.display = '';
 
+    dom.innerHTML = '';
     const chart = echarts.init(dom); finChartInstances['profitability'] = chart;
     const labels = annual.map(d => String(d['报告期']).slice(0, 4));
-    const parsePct = (v) => { if (!v) return 0; const n = parseFloat(String(v).replace('%', '')); return isNaN(n) ? 0 : n; };
+    // 空字段不等于 0%。金融企业通常不披露销售毛利率，不能把缺失值画成一条 0 线。
+    const parsePct = (v) => {
+        if (v === null || v === undefined || String(v).trim() === '' || String(v).trim() === '--') return null;
+        const n = parseFloat(String(v).replace('%', ''));
+        return Number.isFinite(n) ? n : null;
+    };
     const roe = annual.map(d => parsePct(d['净资产收益率']));
     const gross = annual.map(d => parsePct(d['销售毛利率']));
     const net = annual.map(d => parsePct(d['销售净利率']));
+    const hasValue = values => values.some(value => value !== null);
+    const legendData = [];
+    const seriesData = [];
+    if (hasValue(roe)) {
+        legendData.push('ROE');
+        seriesData.push({ name: 'ROE', type: 'line', symbol: 'circle', symbolSize: 8, lineStyle: { color: '#4f8fdc', width: 2 }, itemStyle: { color: '#4f8fdc' }, data: roe });
+    }
+    if (hasValue(gross)) {
+        legendData.push('毛利率');
+        seriesData.push({ name: '毛利率', type: 'line', symbol: 'circle', symbolSize: 8, lineStyle: { color: '#34d399', width: 2 }, itemStyle: { color: '#34d399' }, data: gross });
+    }
+    if (hasValue(net)) {
+        legendData.push('净利率');
+        seriesData.push({ name: '净利率', type: 'line', symbol: 'circle', symbolSize: 8, lineStyle: { color: '#a78bfa', width: 2 }, itemStyle: { color: '#a78bfa' }, data: net });
+    }
+
+    if (seriesData.length === 0) {
+        chart.dispose();
+        delete finChartInstances['profitability'];
+        showChartPlaceholder(dom, panel);
+        return;
+    }
 
     chart.setOption({
         tooltip: { trigger: 'axis', formatter: function(p) { let s = `<b>${p[0].name}</b><br/>`; p.forEach(v => s += `${v.seriesName}: ${v.value}%<br/>`); return s; } },
-        legend: { data: ['ROE', '毛利率', '净利率'], bottom: 5, left: 'center', textStyle: { fontSize: 12 } },
-        grid: { left: '6%', right: '7%', bottom: 62, top: 20, containLabel: true },
+        legend: { data: legendData, bottom: 5, left: 'center', textStyle: { fontSize: 12 } },
+        grid: { left: '14%', right: '8%', bottom: 70, top: 20, containLabel: true },
         xAxis: { type: 'category', data: labels, axisLabel: { fontSize: 11 } },
-        yAxis: { type: 'value', name: '%', nameLocation: 'middle', nameRotate: 90, nameGap: 45, nameTextStyle: { fontSize: 11 }, axisLabel: { fontSize: 11, formatter: '{value}%' }, max: value => Math.ceil(value.max * 1.10) },
-        series: [
-            { name: 'ROE', type: 'line', symbol: 'circle', symbolSize: 8, lineStyle: { color: '#4f8fdc', width: 2 }, itemStyle: { color: '#4f8fdc' }, data: roe },
-            { name: '毛利率', type: 'line', symbol: 'circle', symbolSize: 8, lineStyle: { color: '#34d399', width: 2 }, itemStyle: { color: '#34d399' }, data: gross },
-            { name: '净利率', type: 'line', symbol: 'circle', symbolSize: 8, lineStyle: { color: '#a78bfa', width: 2 }, itemStyle: { color: '#a78bfa' }, data: net },
-        ]
+        yAxis: { type: 'value', name: '占比(%)', nameLocation: 'middle', nameRotate: 90, nameGap: 45, nameTextStyle: { fontSize: 11 }, axisLabel: { fontSize: 11, formatter: '{value}%' }, max: value => Math.ceil(value.max * 1.10) },
+        series: seriesData
     });
     window.addEventListener('resize', () => chart.resize());
 }

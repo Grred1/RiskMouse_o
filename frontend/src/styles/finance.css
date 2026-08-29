@@ -150,6 +150,15 @@
 .chart-container    { width: 100%; height: clamp(280px, 38vh, 400px); }
 .chart-container-lg { width: 100%; height: clamp(320px, 44vh, 460px); }
 .small-chart        { width: 100%; height: clamp(200px, 28vh, 280px); }
+.chart-empty-state {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #8fa3b8;
+    font-size: 14px;
+    letter-spacing: .04em;
+}
 
 /* ══ AI 解读区 ══ */
 .ai-section {
@@ -188,7 +197,8 @@
     font-size: 13px;
     line-height: 1.8;
     color: #4a6080;
-    white-space: pre-wrap;
+    /* 内容由子元素逐段渲染，不能保留模板缩进换行，否则开头会出现空白行。 */
+    white-space: normal;
 }
 .ai-loading { color: #8fa3b8; font-size: 13px; }
 

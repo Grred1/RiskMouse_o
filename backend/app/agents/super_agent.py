@@ -48,6 +48,8 @@ def _build_super_agent_inputs(inputs: dict) -> dict:
         "rag_context": inputs.get("rag_context", ""),
         "tool_context": tool_context,
         "usage_guide": inputs.get("usage_guide", ""),
+        "short_term_memory": inputs.get("short_term_memory", "（没有会话上下文）"),
+        "long_term_memory": inputs.get("long_term_memory", "（没有相关长期记忆）"),
         "length_instruction": length_instruction,
         "status": inputs.get("status", "idle"),
         "last_action": inputs.get("last_action", ""),
@@ -63,6 +65,7 @@ agent = Agent(
     input_keys=[
         "question", "agent_list", "cache_summary",
         "rag_context", "tool_context", "usage_guide",
+        "short_term_memory", "long_term_memory",
         "length_instruction",
         "status", "last_action", "screen",
     ],

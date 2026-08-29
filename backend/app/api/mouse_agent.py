@@ -12,7 +12,7 @@ import time
 from datetime import datetime
 from email.mime.text import MIMEText
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from ..core import (
@@ -36,6 +36,9 @@ from ..core.data import guba as data_guba
 from ..core.data import news as data_news
 from ..agents import run_agent
 from .. import db as watchlist_db
+from ..auth import get_current_user
+from ..agent_runtime.memory import build_context, consolidate_session, maybe_extract_explicit_memory, remember
+from ..agent_runtime import create_patrol_plan, start as start_workflow
 
 router = APIRouter(prefix="/api/agent", tags=["小老鼠Agent"])
 
@@ -55,6 +58,19 @@ _surf_lock = threading.Lock()
 
 class ChatRequest(BaseModel):
     question: str
+    session_id: str = "default"
+    space_id: str = "default"
+
+
+class MemoryRequest(BaseModel):
+    memory_type: str
+    content: str
+    importance: int = 2
+    space_id: str = "default"
+
+
+class MemorySpaceRequest(BaseModel):
+    name: str = ""
 
 
 class EmailConfigRequest(BaseModel):
@@ -161,8 +177,8 @@ def get_status():
 
 @router.post("/surf")
 def trigger_surf():
-    threading.Thread(target=_deep_surf, daemon=True).start()
-    return {"ok": True, "msg": "小老鼠开始网上冲浪了 🐭🌊"}
+    run_id = start_workflow(create_patrol_plan())
+    return {"ok": True, "run_id": run_id, "msg": "小老鼠已将巡检加入全局任务队列 🐭🌊"}
 
 
 @router.get("/surf-sync")
@@ -197,28 +213,50 @@ def stop_timer():
 
 
 @router.post("/chat")
-def chat(req: ChatRequest):
+def chat(req: ChatRequest, user: dict = Depends(get_current_user)):
     global _current_status
     _current_status = "chatting"
 
-    # 1. 意图识别
+    session_id = (req.session_id or "default").strip()[:100]
+    requested_space_id = (req.space_id or "default").strip()[:100]
+    session = watchlist_db.get_agent_session(session_id)
+    if not session:
+        if not watchlist_db.get_agent_space(user["id"], requested_space_id):
+            raise HTTPException(status_code=409, detail="请先新建一个记忆空间，再开始对话")
+        watchlist_db.ensure_agent_session(session_id, requested_space_id)
+        session = watchlist_db.get_agent_session(session_id) or {}
+    elif not watchlist_db.get_agent_space(user["id"], session.get("space_id", "")):
+        raise HTTPException(status_code=403, detail="无权访问该对话")
+    space_id = session.get("space_id", "default")
+    # 1. 记录本轮输入，并仅在用户明确要求时写入长期记忆
+    watchlist_db.add_agent_message(session_id, "user", req.question)
+    saved_memory = None
+    try:
+        saved_memory = maybe_extract_explicit_memory(req.question, space_id=space_id)
+    except ValueError as exc:
+        _push_screen(f"🧠 未保存记忆: {exc}")
+
+    # 2. 意图识别
     intents = _identify_intents(req.question)
 
-    # 2. 工具 dispatch：按意图调用 skill，合并结果
+    # 3. 工具 dispatch：按意图调用 skill，合并结果
     tool_context = _dispatch_tools(req.question, intents)
     if tool_context:
         _push_screen(f"🛠️ 调用工具: {', '.join(intents)}")
 
-    # 3. 查询 RAG 知识库
+    # 4. 查询 RAG 知识库
     rag_context = cache_rag.search_as_context(req.question)
 
-    # 4. 查询使用文档
+    # 5. 查询使用文档
     usage_text = usage_doc.search_usage(req.question)
     usage_guide = f"📖 使用指南:\n{usage_text}" if usage_text else ""
 
     _push_screen("💬 正在思考你的问题...")
 
-    # 5. 调用 super_agent
+    # 6. 只注入最近会话和与当前问题相关的长期记忆
+    memory_context = build_context(session_id, req.question)
+
+    # 7. 调用 super_agent
     reply = run_agent("super_agent", {
         "question": req.question,
         "rag_context": rag_context,
@@ -227,10 +265,91 @@ def chat(req: ChatRequest):
         "status": _current_status,
         "last_action": _current_action,
         "screen": _get_screen(),
+        **memory_context,
     })
 
+    watchlist_db.add_agent_message(session_id, "assistant", reply)
+    threading.Thread(target=consolidate_session, args=(session_id, req.question), daemon=True).start()
     _current_status = "idle"
-    return {"reply": reply, "intents": intents}
+    return {"reply": reply, "intents": intents, "session_id": session_id, "space_id": space_id, "memory_saved": saved_memory}
+
+
+@router.get("/spaces")
+def get_memory_spaces(user: dict = Depends(get_current_user)):
+    """列出小老鼠的记忆空间（类似项目文件夹）。"""
+    return {"spaces": watchlist_db.list_agent_spaces(user["id"])}
+
+
+@router.post("/spaces")
+def create_memory_space(req: MemorySpaceRequest, user: dict = Depends(get_current_user)):
+    try:
+        return {"space": watchlist_db.create_agent_space(user["id"], req.name)}
+    except ValueError as exc:
+        return {"ok": False, "message": str(exc)}
+
+
+@router.patch("/spaces/{space_id}")
+def rename_memory_space(space_id: str, req: MemorySpaceRequest, user: dict = Depends(get_current_user)):
+    try:
+        return {"space": watchlist_db.rename_agent_space(user["id"], space_id, req.name)}
+    except ValueError as exc:
+        return {"ok": False, "message": str(exc)}
+
+
+@router.delete("/spaces/{space_id}")
+def delete_memory_space(space_id: str, user: dict = Depends(get_current_user)):
+    try:
+        ok = watchlist_db.delete_agent_space(user["id"], space_id)
+        return {"ok": ok, "message": "记忆空间不存在" if not ok else "记忆空间已删除"}
+    except ValueError as exc:
+        return {"ok": False, "message": str(exc)}
+
+
+@router.get("/spaces/{space_id}/sessions")
+def get_space_sessions(space_id: str, user: dict = Depends(get_current_user)):
+    return {"sessions": watchlist_db.list_agent_sessions(user["id"], space_id)}
+
+
+@router.post("/spaces/{space_id}/sessions")
+def create_space_session(space_id: str, user: dict = Depends(get_current_user)):
+    try:
+        return {"session": watchlist_db.create_agent_session(user["id"], space_id)}
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@router.delete("/spaces/{space_id}/sessions/{session_id}")
+def delete_space_session(space_id: str, session_id: str, user: dict = Depends(get_current_user)):
+    ok = watchlist_db.delete_agent_session(user["id"], space_id, session_id)
+    return {"ok": ok, "message": "对话不存在或不属于当前空间" if not ok else "对话已删除"}
+
+
+@router.get("/memory/session/{session_id}")
+def get_session_memory(session_id: str, user: dict = Depends(get_current_user)):
+    """调试/展示当前会话的短期记忆，不暴露其他会话。"""
+    session = watchlist_db.get_agent_session(session_id)
+    if session and not watchlist_db.get_agent_space(user["id"], session.get("space_id", "")):
+        raise HTTPException(status_code=403, detail="无权访问该对话")
+    return {"session": session, "messages": watchlist_db.get_agent_messages(session_id, limit=12)}
+
+
+@router.get("/memory")
+def get_long_term_memory(space_id: str = Query(...), user: dict = Depends(get_current_user)):
+    """返回小老鼠可长期记住的稳定偏好与关注点。"""
+    if not watchlist_db.get_agent_space(user["id"], space_id):
+        raise HTTPException(status_code=404, detail="记忆空间不存在")
+    return {"memories": watchlist_db.list_agent_memories(space_id=space_id)}
+
+
+@router.post("/memory")
+def create_long_term_memory(req: MemoryRequest, user: dict = Depends(get_current_user)):
+    """显式保存长期记忆；前端或用户都可调用。"""
+    try:
+        if not watchlist_db.get_agent_space(user["id"], req.space_id):
+            raise ValueError("记忆空间不存在，请先新建空间")
+        return {"memory": remember(req.memory_type, req.content, source="manual", importance=req.importance, space_id=req.space_id)}
+    except ValueError as exc:
+        return {"ok": False, "message": str(exc)}
 
 
 @router.get("/notifications")
@@ -274,7 +393,7 @@ def _timer_loop():
     """每 10 分钟执行一次深度巡检"""
     global _timer_running
     # 启动后立即执行第一次
-    _deep_surf()
+    trigger_surf()
     while _timer_running:
         for minute in range(10):
             if not _timer_running:
@@ -285,7 +404,7 @@ def _timer_loop():
             time.sleep(60)
         # 每 10 分钟深度巡检
         if _timer_running:
-            _deep_surf()
+            trigger_surf()
 
 
 # ── 深度巡检（每 10 分钟） ──────────────────────────────────────

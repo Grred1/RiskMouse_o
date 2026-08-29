@@ -10,6 +10,7 @@ import time
 import logging
 import hashlib
 import threading
+import calendar as calendar_lib
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -69,6 +70,116 @@ def _clear_progress(cache_key: str):
 
 def _fetch_all_sources(days: int = 30) -> tuple[list[dict], list[dict]]:
     return data_news.fetch_all_news(days=days)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 结构化经济日历（未来风险先验）
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _nth_weekday(year: int, month: int, weekday: int, occurrence: int) -> datetime:
+    """返回某月第 occurrence 个 weekday（周一为 0）。"""
+    first_weekday = datetime(year, month, 1).weekday()
+    day = 1 + ((weekday - first_weekday) % 7) + (occurrence - 1) * 7
+    return datetime(year, month, day)
+
+
+def _upcoming_macro_calendar(now: datetime | None = None, horizon_days: int = 120) -> list[dict]:
+    """生成未来重要经济数据发布窗口。
+
+    这是一个无 Key 的结构化补充源：用于给新闻风险监控提供“未来事件”先验。
+    规则类日期可能受节假日调整，因此在 UI 中明确标记为发布窗口，正式投资决策仍
+    应以对应机构的官方日历为准。
+    """
+    now = now or datetime.now()
+    end = now + timedelta(days=horizon_days)
+    events: list[dict] = []
+
+    def add_event(date: datetime, title: str, summary: str, risk_level: str, source: str, url: str, category: str = "宏观数据"):
+        if now.date() < date.date() <= end.date():
+            events.append({
+                "title": title,
+                "summary": summary,
+                "date": date.strftime("%Y-%m-%d"),
+                "first_occurrence": date.strftime("%Y-%m-%d"),
+                "duration": "数据发布窗口",
+                "duration_days": 1,
+                "time_status": "预期发生",
+                "time_reasoning": "结构化经济日历规则生成，最终日期以官方日历为准",
+                "risk_level": risk_level,
+                "category": category,
+                "source": source,
+                "url": url,
+                "is_calendar_event": True,
+            })
+
+    # 覆盖当前月和后四个月，避免跨年时遗漏。
+    for offset in range(5):
+        month_index = now.month - 1 + offset
+        year = now.year + month_index // 12
+        month = month_index % 12 + 1
+        last_day = calendar_lib.monthrange(year, month)[1]
+
+        # 中国 LPR 通常在每月 20 日报价；非工作日可能顺延。
+        add_event(
+            datetime(year, month, min(20, last_day)), "中国 LPR 报价窗口",
+            "关注贷款市场报价利率调整对银行、地产与市场流动性的影响。",
+            "中", "中国人民银行（规则日历）", "https://www.pbc.gov.cn/",
+            "货币政策",
+        )
+        # PMI 通常在月末发布，节假日附近可能调整。
+        add_event(
+            datetime(year, month, last_day), "中国 PMI 数据发布窗口",
+            "关注制造业与非制造业景气变化及其对周期行业的影响。",
+            "中", "国家统计局（规则日历）", "https://www.stats.gov.cn/",
+            "宏观数据",
+        )
+        # 美国非农通常在每月第一个周五发布；CPI 以第二个周三附近窗口展示。
+        add_event(
+            _nth_weekday(year, month, 4, 1), "美国非农就业数据发布窗口",
+            "就业数据会影响美元、美债收益率及全球风险偏好。",
+            "高", "美国劳工统计局（规则日历）", "https://www.bls.gov/schedule/news_release/empsit.htm",
+            "海外宏观",
+        )
+        add_event(
+            _nth_weekday(year, month, 2, 2), "美国 CPI 数据发布窗口",
+            "通胀数据可能改变市场对美联储政策路径的预期。",
+            "高", "美国劳工统计局（规则日历）", "https://www.bls.gov/schedule/news_release/cpi.htm",
+            "海外宏观",
+        )
+
+    # FOMC 的日期为官方 2026 年会议安排，后续年份交由官方日历更新。
+    fomc_dates = ("2026-09-15", "2026-10-27", "2026-12-08")
+    for value in fomc_dates:
+        meeting = datetime.strptime(value, "%Y-%m-%d")
+        add_event(
+            meeting, "美联储 FOMC 议息会议窗口",
+            "利率决议与点阵图可能显著影响全球流动性、汇率及成长股估值。",
+            "高", "美联储（官方日历）", "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm",
+            "货币政策",
+        )
+
+    return events
+
+
+def _attach_upcoming_calendar(data: dict) -> dict:
+    """将经济日历叠加到新闻时间线；不写入新闻持久化缓存，避免重复积累。"""
+    timeline = data.get("timeline", {})
+    news_events = [
+        *(timeline.get("past", {}).get("events", []) or []),
+        *(timeline.get("current", {}).get("events", []) or []),
+        *(timeline.get("future", {}).get("events", []) or []),
+    ]
+    calendar_events = _upcoming_macro_calendar()
+    known = {(event.get("title"), event.get("first_occurrence") or event.get("date")) for event in news_events}
+    merged = news_events + [
+        event for event in calendar_events
+        if (event.get("title"), event.get("first_occurrence") or event.get("date")) not in known
+    ]
+    data["timeline"] = _classify_timeline_events(merged)
+    stats = data.setdefault("stats", {})
+    stats["total"] = len(merged)
+    stats["calendar_count"] = len(calendar_events)
+    return data
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 新闻聚类
@@ -414,11 +525,11 @@ def get_macro_risk_timeline(
         if cached:
             cached["from_cache"] = True
             cached["cache_status"] = "warm"
-            return cached
+            return _attach_upcoming_calendar(cached)
         # 无缓存 → 自动触发后台采集，前端走 background_started 分支显示 loading
-        return _start_background_update(CACHE_KEY, days)
+        return _attach_upcoming_calendar(_start_background_update(CACHE_KEY, days))
     if background:
-        return _start_background_update(CACHE_KEY, days)
+        return _attach_upcoming_calendar(_start_background_update(CACHE_KEY, days))
     try:
         existing = _load_persistent_events().get("events", [])
         existing_fingerprints = set()
@@ -428,12 +539,12 @@ def get_macro_risk_timeline(
             existing_fingerprints.add(f"{title_words}_{date}")
         official, social = _fetch_all_sources(days=days)
         if not official and not social:
-            return {
+            return _attach_upcoming_calendar({
                 "timeline": {"past": {"events": [], "stats": {}}, "current": {"events": [], "stats": {}}, "future": {"events": [], "stats": {}}},
                 "stats": {"total": 0, "raw_count": 0},
                 "fetched_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "from_cache": False
-            }
+            })
         clusters = _cluster_news(official, social)
         logger.info("聚类后: 原始%s+%s条 → %s个独立事件", len(official), len(social), len(clusters))
         filtered = _filter_risk_events(clusters)
@@ -446,15 +557,15 @@ def get_macro_risk_timeline(
         write_cache(CACHE_KEY, data, module="macro")
         data["from_cache"] = False
         data["cache_status"] = "fresh"
-        return data
+        return _attach_upcoming_calendar(data)
     except Exception as e:
         logger.error(f"宏观风险时间轴生成失败: {e}")
-        return {
+        return _attach_upcoming_calendar({
             "timeline": {"past": {"events": [], "stats": {}}, "current": {"events": [], "stats": {}}, "future": {"events": [], "stats": {}}},
             "stats": {"total": 0, "raw_count": 0},
             "fetched_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "from_cache": False, "error": str(e),
-        }
+        })
 
 
 @router.get("/macro/refresh-progress")

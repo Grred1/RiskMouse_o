@@ -195,7 +195,11 @@ def get_financial(
         cache_file = f"{symbol}_financial.json"
         if not refresh:
             cached = read_cache(code, module="financial")
-            if cached:
+            # 网络异常时不能让空响应永久污染缓存；仅复用至少含一种真实数据的缓存。
+            if cached and any(cached.get(key) for key in (
+                "profit_sheet", "balance_sheet", "cash_flow", "financial_abstract"
+            )):
+                cached["from_cache"] = True
                 return cached
 
         # 1. 利润表
@@ -278,7 +282,8 @@ def get_financial(
             "from_cache": False,
         }
 
-        write_cache(code, result, module="financial")
+        if any((profit_records, balance_records, cash_records, abstract_records)):
+            write_cache(code, result, module="financial")
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取财务数据失败: {str(e)}")

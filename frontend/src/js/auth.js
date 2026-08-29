@@ -40,6 +40,12 @@ function handleAuthError(detail) {
             if (t) {
                 localStorage.removeItem('token');
                 localStorage.removeItem('user');
+                // 退出账号时清理小老鼠前端缓存，防止下一位用户看到上一位的对话残影。
+                Object.keys(localStorage).forEach(key => {
+                    if (key.startsWith('mouse_chat_history_') || key.startsWith('riskmouse_agent_')) {
+                        localStorage.removeItem(key);
+                    }
+                });
                 updateUI();
                 location.reload();
             } else {

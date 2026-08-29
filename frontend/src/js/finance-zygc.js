@@ -144,20 +144,6 @@ function render() {
     document.getElementById('reportSelector').style.display = 'flex';
     document.getElementById('zygcLayout').style.display = 'flex';
 
-    const availableCategories = new Set(allData.records.map(r => r.分类类型));
-    document.querySelectorAll('.zygc-nav-item').forEach(el => {
-        const catKey = el.dataset.tab;
-        const catName = REVERSE_MAP[catKey];
-        el.style.display = availableCategories.has(catName) ? '' : 'none';
-    });
-
-    const activeNav = document.querySelector('.zygc-nav-item.active');
-    if (activeNav && activeNav.style.display === 'none') {
-        const firstVisible = Array.from(document.querySelectorAll('.zygc-nav-item'))
-            .find(el => el.style.display !== 'none');
-        if (firstVisible) switchTab(firstVisible.dataset.tab);
-    }
-
     onReportChange();
 }
 
@@ -167,9 +153,51 @@ function onReportChange() {
 
     hideError();
 
+    updateCategoryAvailability(date);
+
     const categories = ['industry', 'product', 'region'];
     categories.forEach(cat => renderCategory(cat, date));
     adjustFinLayout();
+}
+
+// 分类披露会随报告期变化：只展示当前报告期真正有数据的维度，避免用户点进空白页面。
+function updateCategoryAvailability(date) {
+    const reportRecords = allData.records.filter(row => row.报告日期 === date);
+    const availableCategories = new Set(reportRecords.map(row => row.分类类型));
+
+    // 部分数据源会把同一组主营构成同时标为“按行业”和“按产品”。
+    // 两组构成项及核心数值完全一致时，优先保留按行业，避免给用户两个重复入口。
+    const industryRecords = reportRecords.filter(row => row.分类类型 === '按行业分类');
+    const productRecords = reportRecords.filter(row => row.分类类型 === '按产品分类');
+    if (industryRecords.length && productRecords.length &&
+        categorySignature(industryRecords) === categorySignature(productRecords)) {
+        availableCategories.delete('按产品分类');
+    }
+
+    document.querySelectorAll('.zygc-nav-item').forEach(el => {
+        const categoryName = REVERSE_MAP[el.dataset.tab];
+        el.style.display = availableCategories.has(categoryName) ? '' : 'none';
+    });
+
+    const activeNav = document.querySelector('.zygc-nav-item.active');
+    if (!activeNav || activeNav.style.display === 'none') {
+        const firstVisible = Array.from(document.querySelectorAll('.zygc-nav-item'))
+            .find(el => el.style.display !== 'none');
+        if (firstVisible) switchTab(firstVisible.dataset.tab);
+    }
+}
+
+function categorySignature(records) {
+    return records
+        .map(row => [
+            row.主营构成,
+            Number(row.主营收入 || 0).toFixed(2),
+            Number(row.主营成本 || 0).toFixed(2),
+            Number(row.主营利润 || 0).toFixed(2),
+            Number(row.毛利率 || 0).toFixed(4),
+        ].join('|'))
+        .sort()
+        .join('||');
 }
 
 function renderCategory(catKey, date) {

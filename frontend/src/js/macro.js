@@ -33,6 +33,13 @@ function riskDot(level) {
     return '●';
 }
 
+// 后端数据源使用 guba 作为机器标识，界面统一展示为用户可读的中文名称。
+function sourceLabel(source) {
+    const labels = { guba: '股吧', caixin: '财新社' };
+    const key = String(source || '').toLowerCase();
+    return labels[key] || (source || '');
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // 数据获取
 // ══════════════════════════════════════════════════════════════════════════════
@@ -225,11 +232,13 @@ function renderMacroView() {
     const currentCount = tl.current?.stats?.total || 0;
     const futureCount = tl.future?.stats?.total || 0;
 
+    // 时间和风险是叠加筛选，而不是后一个条件覆盖前一个条件。
+    // 月历和时间轴都必须使用这一份结果，避免点击风险等级时月历不变化。
     let filteredEvents = allEvents;
-    if (filterRisk !== 'all') filteredEvents = filteredEvents.filter(e => e.risk_level === filterRisk);
     if (filterTime === 'past') filteredEvents = tl.past?.events || [];
     else if (filterTime === 'current') filteredEvents = tl.current?.events || [];
     else if (filterTime === 'future') filteredEvents = tl.future?.events || [];
+    if (filterRisk !== 'all') filteredEvents = filteredEvents.filter(e => e.risk_level === filterRisk);
 
     const html = `
         <div class="macro-timeline-wrap">
@@ -270,7 +279,7 @@ function renderMacroView() {
                     </div>
                 </div>
                 <div class="tl-meta">
-                    <span>📊 共 ${stats?.total||0} 条宏观风险事件</span>
+                    <span>📊 显示 ${filteredEvents.length} / ${stats?.total||0} 条宏观风险事件</span>
                     <span class="rc-time">更新: ${macroData.fetched_at || '-'}</span>
                     <button class="rc-btn-refresh" style="background:${selectedView==='timeline'?'#4f8fdc':'#888'}" onclick="switchView('timeline')">📋 时间轴</button>
                     <button class="rc-btn-refresh" style="background:${selectedView==='calendar'?'#4f8fdc':'#888'}" onclick="switchView('calendar')">📅 月历</button>
@@ -288,7 +297,7 @@ function renderMacroView() {
 
             <div class="tl-main-area">
                 ${selectedView === 'calendar'
-                    ? renderCalendar(allEvents)
+                    ? renderCalendar(filteredEvents)
                     : `<div class="tl-timeline-container">
                         ${renderTimeline(filteredEvents)}
                     </div>
@@ -332,7 +341,7 @@ function renderTimeline(events) {
                 return `
                     <div class="tl-item ${dotTimeClass}" onclick="selectEvent('${escapeStr(ev.title)}')">
                         <div class="${dotClass}"></div>
-                        <div class="tl-date">${fmtDate(fo)} ${ev.source ? '· '+ev.source : ''}</div>
+                        <div class="tl-date">${fmtDate(fo)} ${ev.source ? '· '+sourceLabel(ev.source) : ''}</div>
                         <div class="tl-title">${riskLabel(level)} ${ev.title}</div>
                         <div class="tl-meta-row">
                             <span class="tl-duration">⏱ ${ev.duration||'中期影响'}</span>
@@ -357,7 +366,7 @@ function renderDetail(ev) {
             <div class="tl-detail-badges">
                 ${riskLabel(ev.risk_level)}
                 <span class="tl-badge">${ev.category||'其他'}</span>
-                <span class="tl-badge">${ev.source||'未知来源'}</span>
+                <span class="tl-badge">${sourceLabel(ev.source) || '未知来源'}</span>
                 <span class="tl-badge">${ev.time_status||'进行中'}</span>
             </div>
         </div>
@@ -496,11 +505,12 @@ function renderCalendar(events) {
         cells += '<div class="rc-day rc-day-empty"></div>';
     }
 
-    const detailHtml = renderCalendarDetail();
+    // 详情面板和月历格子使用同一批已筛选事件，避免风险等级筛选失效。
+    const detailHtml = renderCalendarDetail(events);
 
     return `
-        <div style="display:flex;flex-direction:row;flex-wrap:wrap;gap:12px;align-items:flex-start;">
-            <div class="rc-calendar-wrap" style="flex:1;min-width:300px;">
+        <div class="macro-calendar-layout">
+            <div class="rc-calendar-wrap">
                 <div class="rc-cal-nav">
                     <button onclick="changeMonth(-1)">◀</button>
                     <span>${year}年 ${MONTH_KEYS[month]}</span>
@@ -523,12 +533,11 @@ function selectCalendarDay(dateStr) {
     renderMacroView();
 }
 
-function renderCalendarDetail() {
+function renderCalendarDetail(visibleEvents = []) {
     if (!selectedCalendarDate) {
         return '<div class="rc-detail-panel" style="flex:0 0 360px;max-width:100%;"><div class="rc-detail-header"><span>点击日期查看事件</span></div></div>';
     }
-    const allEvents = getAllEvents();
-    const dayEvents = allEvents.filter(ev => {
+    const dayEvents = visibleEvents.filter(ev => {
         const d = ev.first_occurrence || ev.date || '';
         return d.substring(0, 10) === selectedCalendarDate;
     });
@@ -547,7 +556,7 @@ function renderCalendarDetail() {
                 <div class="rc-detail-card-header">
                     <span class="rc-level-tag" style="border-color:${ev.risk_level==='高'?'#e74c3c':ev.risk_level==='中'?'#f39c12':'#27ae60'};color:${ev.risk_level==='高'?'#e74c3c':ev.risk_level==='中'?'#f39c12':'#27ae60'}">${ev.risk_level||'中'}风险</span>
                     <span class="rc-cat-tag">${ev.category||'其他'}</span>
-                    <span class="rc-src-tag">${ev.source||''}</span>
+                    <span class="rc-src-tag">${sourceLabel(ev.source)}</span>
                 </div>
                 <div class="rc-detail-title">${ev.title||''}</div>
                 ${ev.summary ? `<div class="rc-detail-summary">${ev.summary}</div>` : ''}
